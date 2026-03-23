@@ -1,0 +1,166 @@
+{
+  "projectType": "framework",
+  "projectName": "Portkey AI Gateway",
+  "projectDescription": "A blazing fast, open-source AI gateway that routes requests to 250+ LLMs with sub-1ms latency, built-in guardrails, load balancing, fallbacks, and MCP server management.",
+  "theme": "sequoia",
+  "primaryColor": "#cf5869",
+  "lightColor": "#815c7b",
+  "darkColor": "#f1f1f3",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "supported-providers"
+            ]
+          },
+          {
+            "group": "Deployment",
+            "pages": [
+              "deployment/overview",
+              "deployment/docker",
+              "deployment/nodejs",
+              "deployment/cloudflare-workers",
+              "deployment/aws-ec2",
+              "deployment/configuration"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/configs",
+              "concepts/routing",
+              "concepts/fallbacks",
+              "concepts/load-balancing",
+              "concepts/retries",
+              "concepts/caching"
+            ]
+          },
+          {
+            "group": "Guardrails",
+            "pages": [
+              "guardrails/overview",
+              "guardrails/built-in",
+              "guardrails/custom-plugins",
+              "guardrails/partner-plugins"
+            ]
+          },
+          {
+            "group": "MCP Gateway",
+            "pages": [
+              "mcp/overview",
+              "mcp/quickstart",
+              "mcp/authentication",
+              "mcp/access-control",
+              "mcp/observability"
+            ]
+          },
+          {
+            "group": "Integrations",
+            "pages": [
+              "integrations/openai-sdk",
+              "integrations/langchain",
+              "integrations/llamaindex",
+              "integrations/autogen",
+              "integrations/crewai"
+            ]
+          },
+          {
+            "group": "Plugin Development",
+            "pages": [
+              "plugins/architecture",
+              "plugins/creating-a-plugin",
+              "plugins/manifest"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Overview",
+            "pages": [
+              "api-reference/overview",
+              "api-reference/authentication",
+              "api-reference/headers"
+            ]
+          },
+          {
+            "group": "Chat",
+            "pages": [
+              "api-reference/chat-completions",
+              "api-reference/completions",
+              "api-reference/messages"
+            ]
+          },
+          {
+            "group": "Multimodal",
+            "pages": [
+              "api-reference/embeddings",
+              "api-reference/image-generations",
+              "api-reference/image-edits",
+              "api-reference/audio-speech",
+              "api-reference/audio-transcriptions",
+              "api-reference/audio-translations"
+            ]
+          },
+          {
+            "group": "Files & Batches",
+            "pages": [
+              "api-reference/files",
+              "api-reference/batches"
+            ]
+          },
+          {
+            "group": "Other",
+            "pages": [
+              "api-reference/models",
+              "api-reference/fine-tuning",
+              "api-reference/responses",
+              "api-reference/realtime"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Route to 250+ LLMs with a single OpenAI-compatible API",
+    "Sub-1ms latency with a tiny 122kb footprint",
+    "Automatic retries with exponential backoff",
+    "Fallback routing across providers on failures",
+    "Load balancing across multiple API keys or providers",
+    "50+ built-in and partner guardrails for input/output validation",
+    "MCP Gateway for managing Model Context Protocol servers",
+    "Caching (simple and semantic) to reduce costs and latency",
+    "Multi-modal support (vision, audio, image generation)",
+    "Realtime WebSocket API support",
+    "Plugin system for custom guardrails and transformers",
+    "Deployable to Node.js, Docker, Cloudflare Workers, AWS, GCP, Azure"
+  ],
+  "publicApiSurface": [
+    "POST /v1/chat/completions",
+    "POST /v1/completions",
+    "POST /v1/embeddings",
+    "POST /v1/messages",
+    "POST /v1/messages/count_tokens",
+    "POST /v1/images/generations",
+    "POST /v1/images/edits",
+    "POST /v1/audio/speech",
+    "POST /v1/audio/transcriptions",
+    "POST /v1/audio/translations",
+    "GET /v1/models",
+    "GET|POST|DELETE /v1/files",
+    "GET|POST /v1/batches",
+    "GET|POST|DELETE /v1/responses",
+    "GET|POST /v1/fine_tuning/jobs",
+    "GET /v1/realtime (WebSocket)",
+    "POST /v1/proxy/*"
+  ]
+}
