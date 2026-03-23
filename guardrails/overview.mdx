@@ -1,0 +1,193 @@
+---
+title: "Guardrails Overview"
+description: "Validate and transform LLM inputs and outputs with configurable guardrail checks at every stage of the request lifecycle."
+---
+
+Guardrails let you intercept requests to LLMs and their responses, run checks against them, and decide whether to pass them through or block them. Every check returns a boolean *verdict*. When the verdict fails and `deny` is `true`, the gateway blocks the request and returns an error to the caller.
+
+## How guardrails work
+
+Every request through the AI Gateway passes through two optional hook points:
+
+```
+Client
+  │
+  ▼
+┌─────────────────────┐
+│  beforeRequestHook  │  ← input_guardrails run here
+│  (validate input)   │
+└─────────────────────┘
+  │
+  ▼
+┌─────────────────┐
+│   LLM Provider  │
+└─────────────────┘
+  │
+  ▼
+┌──────────────────────┐
+│  afterRequestHook    │  ← output_guardrails run here
+│  (validate output)   │
+└──────────────────────┘
+  │
+  ▼
+Client response
+```
+
+### beforeRequestHook
+
+Runs **before** the request is forwarded to the LLM provider. Use this to:
+
+- Block disallowed request types or models
+- Detect prompt injection or jailbreak attempts
+- Validate JWT tokens or required metadata
+- Redact PII before it leaves your network
+- Mutate the prompt (transformer functions)
+
+### afterRequestHook
+
+Runs **after** the LLM returns a response, before it is forwarded to your client. Use this to:
+
+- Validate response structure (JSON schema, required keys)
+- Block responses that contain forbidden words or code
+- Verify all URLs in the response are reachable
+- Detect hallucinations or bias in model output
+- Log responses to an external system
+
+## The `deny` flag
+
+Each guardrail object carries a `deny` boolean that controls what happens when the check verdict is `false`:
+
+| `deny` | Verdict | Outcome |
+|--------|---------|------------------|
+| `true` | `false` | Request is blocked. Gateway returns HTTP `446` with details. |
+| `false` | `false` | Request continues. Response status is `246` to signal a soft failure. |
+| any | `true` | Request continues normally. |
+
+<Info>
+A `246` status code means the guardrail check failed but the request was **not** blocked — useful for logging and monitoring without disrupting traffic.
+</Info>
+
+## Attaching guardrails to a config
+
+Guardrails are defined inside a Portkey **config** object using the `input_guardrails` and `output_guardrails` keys. Pass the config when constructing the client or on a per-request basis.
+
+```json
+{
+  "input_guardrails": [
+    {
+      "default.regexMatch": {
+        "rule": "\\d{4}-\\d{4}-\\d{4}-\\d{4}"
+      },
+      "deny": true
+    }
+  ],
+  "output_guardrails": [
+    {
+      "default.contains": {
+        "operator": "none",
+        "words": ["error", "sorry"]
+      },
+      "deny": false
+    }
+  ]
+}
+```
+
+In Python:
+
+```python
+from portkey_ai import Portkey
+
+client = Portkey(
+    provider="openai",
+    Authorization="sk-***"
+)
+
+config = {
+    "input_guardrails": [{
+        "default.regexMatch": {"rule": "\\d{4}-\\d{4}-\\d{4}-\\d{4}"},
+        "deny": True
+    }],
+    "output_guardrails": [{
+        "default.contains": {"operator": "none", "words": ["error", "sorry"]},
+        "deny": False
+    }]
+}
+
+client = client.with_options(config=config)
+
+response = client.chat.completions.create(
+    model="gpt-4o-mini",
+    messages=[{"role": "user", "content": "Reply randomly with Apple or Bat"}]
+)
+```
+
+With retries — the gateway will keep retrying until the output guardrail passes or the retry budget is exhausted:
+
+```python
+config = {
+    "retry": {"attempts": 5},
+    "output_guardrails": [{
+        "default.contains": {"operator": "none", "words": ["Apple"]},
+        "deny": True
+    }]
+}
+```
+
+<Tip>
+Combining `deny: true` with `retry` lets you automatically retry requests until the LLM produces an output that passes your guardrails.
+</Tip>
+
+## Multiple checks in one guardrail
+
+Each guardrail object can hold **one check function**. Stack multiple objects in the array to run several checks:
+
+```json
+{
+  "output_guardrails": [
+    {
+      "default.notNull": {},
+      "deny": true
+    },
+    {
+      "default.jsonSchema": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "answer": {"type": "string"}
+          },
+          "required": ["answer"]
+        }
+      },
+      "deny": true
+    }
+  ]
+}
+```
+
+All checks run independently. If any `deny: true` check fails, the request is blocked.
+
+## Function ID format
+
+Guardrail function IDs follow the pattern `<plugin-id>.<functionId>`:
+
+- `default.regexMatch` — built-in regex check
+- `default.contains` — built-in word check
+- `aporia.validateProject` — Aporia partner guardrail
+- `pangea.textGuard` — Pangea AI Guard
+
+See [Built-in Guardrails](/guardrails/built-in) for all functions in the `default` plugin, or [Partner Plugins](/guardrails/partner-plugins) for third-party integrations.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Built-in Guardrails" icon="shield-check" href="/guardrails/built-in">
+    All 21 functions included in the `default` plugin — regex, word lists, JSON schema, JWT, and more.
+  </Card>
+  <Card title="Custom Plugins" icon="code" href="/guardrails/custom-plugins">
+    Write your own guardrail logic in TypeScript and register it with the gateway.
+  </Card>
+  <Card title="Partner Plugins" icon="puzzle-piece" href="/guardrails/partner-plugins">
+    Integrate Aporia, Pangea, Patronus, Pillar, and 15+ other security providers.
+  </Card>
+</CardGroup>

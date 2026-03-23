@@ -1,0 +1,261 @@
+---
+title: "Messages"
+description: "Send messages using the Anthropic-native Messages API format."
+---
+
+## POST /v1/messages
+
+Creates a message using the Anthropic Messages API format. This endpoint lets you call Anthropic models (and compatible providers) with the native request structure — including `system` as a top-level field, Anthropic-style content blocks, and extended thinking configuration — without translating to the OpenAI format.
+
+<Info>
+  This endpoint is intended for Anthropic-native integrations. For cross-provider routing with a unified format, use [chat completions](/api-reference/chat-completions) instead.
+</Info>
+
+## Request headers
+
+<ParamField header="x-portkey-provider" type="string">
+  The provider to route the request to. Typically `anthropic` for this endpoint.
+</ParamField>
+
+<ParamField header="x-portkey-api-key" type="string">
+  Your provider API key.
+</ParamField>
+
+<ParamField header="x-portkey-config" type="string">
+  A JSON config object or config ID that defines routing, fallbacks, retries, and more.
+</ParamField>
+
+<ParamField header="x-portkey-virtual-key" type="string">
+  A virtual key ID from Portkey Cloud.
+</ParamField>
+
+## Request body
+
+<ParamField body="model" type="string" required>
+  The model identifier (e.g. `claude-opus-4-5`, `claude-3-5-sonnet-20241022`).
+</ParamField>
+
+<ParamField body="messages" type="object[]" required>
+  The conversation messages. Only `user` and `assistant` roles are accepted; system instructions go in the top-level `system` field.
+
+  <Expandable title="properties">
+    <ParamField body="role" type="string" required>
+      Either `user` or `assistant`.
+    </ParamField>
+    <ParamField body="content" type="string | object[]" required>
+      The message content. A plain string or an array of typed content blocks (`text`, `image`, `document`, `tool_use`, `tool_result`, etc.).
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="max_tokens" type="integer" required>
+  The maximum number of tokens to generate. The request fails if the prompt plus `max_tokens` exceeds the model's context length.
+</ParamField>
+
+<ParamField body="system" type="string | object[]">
+  The system prompt. Accepts a plain string or an array of `TextBlockParam` objects for structured system prompts (including prompt caching with `cache_control`).
+</ParamField>
+
+<ParamField body="temperature" type="number">
+  Sampling temperature between `0` and `1` for most Claude models.
+</ParamField>
+
+<ParamField body="top_p" type="number">
+  Nucleus sampling threshold. Only tokens in the top `top_p` cumulative probability are considered.
+</ParamField>
+
+<ParamField body="top_k" type="integer">
+  Only sample from the top `top_k` tokens at each step.
+</ParamField>
+
+<ParamField body="stream" type="boolean" default="false">
+  When `true`, responses stream as server-sent events.
+</ParamField>
+
+<ParamField body="stop_sequences" type="string[]">
+  Custom sequences that cause the model to stop generating.
+</ParamField>
+
+<ParamField body="tools" type="object[]">
+  Definitions of tools the model may call.
+
+  <Expandable title="properties">
+    <ParamField body="name" type="string" required>
+      The tool name.
+    </ParamField>
+    <ParamField body="description" type="string">
+      A description of what the tool does.
+    </ParamField>
+    <ParamField body="input_schema" type="object" required>
+      JSON Schema describing the tool's input parameters.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="tool_choice" type="object">
+  Controls tool selection. One of `{"type": "auto"}`, `{"type": "any"}`, `{"type": "tool", "name": "..."}`, or `{"type": "none"}`.
+</ParamField>
+
+<ParamField body="thinking" type="object">
+  Configuration for extended thinking (reasoning).
+
+  <Expandable title="properties">
+    <ParamField body="type" type="string" required>
+      `enabled` to turn on thinking, `disabled` to turn it off.
+    </ParamField>
+    <ParamField body="budget_tokens" type="integer">
+      The number of tokens Claude may use for internal reasoning. Required when `type` is `enabled`.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="metadata" type="object">
+  Optional metadata about the request.
+
+  <Expandable title="properties">
+    <ParamField body="user_id" type="string">
+      An external identifier for the end user.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="service_tier" type="string">
+  Capacity tier to use. One of `auto` or `standard_only`.
+</ParamField>
+
+## Response
+
+<ResponseField name="id" type="string">
+  Unique message identifier.
+</ResponseField>
+
+<ResponseField name="type" type="string">
+  Always `message`.
+</ResponseField>
+
+<ResponseField name="role" type="string">
+  Always `assistant`.
+</ResponseField>
+
+<ResponseField name="model" type="string">
+  The model that produced the response.
+</ResponseField>
+
+<ResponseField name="content" type="object[]">
+  The generated content as an array of typed content blocks.
+
+  <Expandable title="properties">
+    <ResponseField name="type" type="string">
+      Block type: `text`, `tool_use`, `thinking`, or `redacted_thinking`.
+    </ResponseField>
+    <ResponseField name="text" type="string">
+      The generated text. Present when `type` is `text`.
+    </ResponseField>
+    <ResponseField name="id" type="string">
+      Tool call identifier. Present when `type` is `tool_use`.
+    </ResponseField>
+    <ResponseField name="name" type="string">
+      Tool name. Present when `type` is `tool_use`.
+    </ResponseField>
+    <ResponseField name="input" type="object">
+      Tool input arguments. Present when `type` is `tool_use`.
+    </ResponseField>
+    <ResponseField name="thinking" type="string">
+      The model's reasoning. Present when `type` is `thinking`.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="stop_reason" type="string">
+  Why the model stopped. One of `end_turn`, `max_tokens`, `stop_sequence`, or `tool_use`.
+</ResponseField>
+
+<ResponseField name="stop_sequence" type="string | null">
+  The stop sequence that triggered a stop, if any.
+</ResponseField>
+
+<ResponseField name="usage" type="object">
+  Token usage for the request.
+
+  <Expandable title="properties">
+    <ResponseField name="input_tokens" type="integer">
+      Number of input tokens used.
+    </ResponseField>
+    <ResponseField name="output_tokens" type="integer">
+      Number of output tokens generated.
+    </ResponseField>
+    <ResponseField name="cache_creation_input_tokens" type="integer">
+      Tokens written to the prompt cache (when prompt caching is active).
+    </ResponseField>
+    <ResponseField name="cache_read_input_tokens" type="integer">
+      Tokens read from the prompt cache (when prompt caching is active).
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Code examples
+
+<CodeGroup>
+
+```bash curl
+curl https://your-gateway-url/v1/messages \
+  -H "Content-Type: application/json" \
+  -H "x-portkey-provider: anthropic" \
+  -H "x-portkey-api-key: $ANTHROPIC_API_KEY" \
+  -d '{
+    "model": "claude-opus-4-5",
+    "max_tokens": 1024,
+    "system": "You are a helpful assistant.",
+    "messages": [
+      {"role": "user", "content": "What is the Portkey AI Gateway?"}
+    ]
+  }'
+```
+
+```python Python
+import anthropic
+
+client = anthropic.Anthropic(
+    base_url="https://your-gateway-url",
+    api_key="$ANTHROPIC_API_KEY",
+    default_headers={
+        "x-portkey-provider": "anthropic",
+    },
+)
+
+response = client.messages.create(
+    model="claude-opus-4-5",
+    max_tokens=1024,
+    system="You are a helpful assistant.",
+    messages=[
+        {"role": "user", "content": "What is the Portkey AI Gateway?"}
+    ],
+)
+
+print(response.content[0].text)
+```
+
+```javascript JavaScript
+import Anthropic from "@anthropic-ai/sdk";
+
+const client = new Anthropic({
+  baseURL: "https://your-gateway-url",
+  apiKey: process.env.ANTHROPIC_API_KEY,
+  defaultHeaders: {
+    "x-portkey-provider": "anthropic",
+  },
+});
+
+const response = await client.messages.create({
+  model: "claude-opus-4-5",
+  max_tokens: 1024,
+  system: "You are a helpful assistant.",
+  messages: [
+    { role: "user", content: "What is the Portkey AI Gateway?" },
+  ],
+});
+
+console.log(response.content[0].text);
+```
+
+</CodeGroup>

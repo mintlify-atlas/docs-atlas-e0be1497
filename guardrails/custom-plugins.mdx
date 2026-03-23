@@ -1,0 +1,313 @@
+---
+title: "Custom Guardrail Plugins"
+description: "Build and register your own guardrail functions in TypeScript to extend the AI Gateway with custom validation logic."
+---
+
+The AI Gateway plugin system lets you write guardrail functions in TypeScript, register them in `conf.json`, and reference them in any config just like the built-in functions. Custom plugins follow the same hook model as the `default` plugin.
+
+## Plugin structure
+
+Each plugin lives in its own subdirectory under `plugins/`:
+
+```
+plugins/
+  your-plugin-name/
+    manifest.json        # plugin metadata, credentials schema, function definitions
+    handler.ts           # TypeScript implementation
+    handler.test.ts      # (recommended) Jest tests
+```
+
+## Step 1 — Write the manifest
+
+The `manifest.json` file declares the plugin identity, any credentials it needs, and the list of functions it exposes.
+
+```json plugins/my-plugin/manifest.json
+{
+  "id": "my-plugin",
+  "description": "Blocks prompts that contain internal project codes.",
+  "credentials": {
+    "type": "object",
+    "properties": {
+      "apiKey": {
+        "type": "string",
+        "label": "API Key",
+        "description": "Optional API key for your validation service.",
+        "encrypted": true
+      }
+    },
+    "required": []
+  },
+  "functions": [
+    {
+      "name": "Block Project Codes",
+      "id": "blockProjectCodes",
+      "type": "guardrail",
+      "supportedHooks": ["beforeRequestHook"],
+      "description": [
+        {
+          "type": "subHeading",
+          "text": "Blocks prompts that contain internal project code references."
+        }
+      ],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "codes": {
+            "type": "array",
+            "label": "Project Codes",
+            "description": [
+              {
+                "type": "subHeading",
+                "text": "List of project codes to block (e.g. PROJ-001)."
+              }
+            ],
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": ["codes"]
+      }
+    }
+  ]
+}
+```
+
+### Manifest fields
+
+| Field | Description |
+|-------|-------------|
+| `id` | Unique plugin identifier. Used as the prefix in function IDs: `my-plugin.blockProjectCodes`. |
+| `description` | Human-readable description shown in the Portkey UI. |
+| `credentials` | JSON Schema for credentials that users must supply in `conf.json`. Mark sensitive values `"encrypted": true`. |
+| `functions[].id` | Function identifier, combined with the plugin `id` to form `<plugin-id>.<functionId>`. |
+| `functions[].type` | `"guardrail"` for pass/fail checks, `"transformer"` for functions that mutate the request. |
+| `functions[].supportedHooks` | Array of `"beforeRequestHook"` and/or `"afterRequestHook"`. |
+| `functions[].parameters` | JSON Schema describing the parameters users can pass in their config. |
+
+## Step 2 — Implement the handler
+
+Create a TypeScript file that exports a `handler` function matching the `PluginHandler` type.
+
+```typescript plugins/my-plugin/handler.ts
+import {
+  HookEventType,
+  PluginContext,
+  PluginHandler,
+  PluginParameters,
+} from '../types';
+
+export const handler: PluginHandler = async (
+  context: PluginContext,
+  parameters: PluginParameters,
+  eventType: HookEventType
+) => {
+  const codes: string[] = parameters.codes ?? [];
+
+  // Extract text to check based on the hook type
+  let textToCheck = '';
+  if (eventType === 'beforeRequestHook') {
+    // context.request contains the raw request body
+    const messages = context.request?.json?.messages ?? [];
+    textToCheck = messages
+      .map((m: any) =>
+        typeof m.content === 'string' ? m.content : JSON.stringify(m.content)
+      )
+      .join(' ');
+  } else {
+    // context.response contains the raw response body
+    textToCheck =
+      context.response?.json?.choices?.[0]?.message?.content ?? '';
+  }
+
+  // Check whether any blocked code appears in the text
+  const found = codes.find((code) => textToCheck.includes(code));
+
+  if (found) {
+    return {
+      error: null,
+      verdict: false,
+      data: { blockedCode: found, message: `Blocked: contains project code "${found}"` },
+    };
+  }
+
+  return {
+    error: null,
+    verdict: true,
+    data: null,
+  };
+};
+```
+
+### PluginHandler interface
+
+The full TypeScript signature from `plugins/types.ts`:
+
+```typescript plugins/types.ts
+export type PluginHandler<P = Record<string, string>> = (
+  context: PluginContext,
+  parameters: PluginParameters<P>,
+  eventType: HookEventType,
+  options?: {
+    env: Record<string, any>;
+    getFromCacheByKey?: (key: string) => Promise<any>;
+    putInCacheWithValue?: (key: string, value: any) => Promise<any>;
+  }
+) => Promise<PluginHandlerResponse>;
+
+export interface PluginHandlerResponse {
+  error: any;          // null on success, or an Error/string
+  verdict?: boolean;   // true = pass, false = fail
+  data?: any | null;   // arbitrary metadata returned to the caller
+  transformedData?: any;  // used by transformer plugins
+  transformed?: boolean;  // set to true when transformedData is populated
+}
+```
+
+**`context`** contains:
+- `context.request` — the raw request body (available in `beforeRequestHook`)
+- `context.response` — the raw response body (available in `afterRequestHook`)
+- `context.requestType` — `'chatComplete'`, `'complete'`, `'embed'`, etc.
+- `context.provider` — the target provider name
+- `context.metadata` — metadata passed with the request
+
+**`parameters`** contains the values the user configured in their guardrail config, plus a `credentials` key with the values from `conf.json`.
+
+**`options`** provides access to environment variables and a simple key-value cache.
+
+<Note>
+For **transformer** plugins, set `transformed: true` and populate `transformedData` with the modified request body instead of returning a `verdict`.
+</Note>
+
+## Step 3 — Register the plugin
+
+Add your plugin ID to the `plugins_enabled` array in `conf.json` at the repository root. If your plugin requires credentials, add them under the `credentials` key:
+
+```json conf.json
+{
+  "plugins_enabled": ["default", "my-plugin"],
+  "credentials": {
+    "my-plugin": {
+      "apiKey": "your-api-key-here"
+    }
+  },
+  "cache": false
+}
+```
+
+## Step 4 — Build the plugins
+
+Run the build command to compile all enabled plugins into the gateway bundle:
+
+```bash
+npm run build-plugins
+```
+
+Then start the gateway:
+
+```bash
+# Development (Cloudflare Workers / Wrangler)
+npm run dev
+
+# Node.js
+npm run dev:node
+```
+
+## Step 5 — Use your plugin in a config
+
+Reference your function as `<plugin-id>.<functionId>` in any guardrail config:
+
+```json
+{
+  "input_guardrails": [
+    {
+      "my-plugin.blockProjectCodes": {
+        "codes": ["PROJ-001", "PROJ-002", "SECRET-ROADMAP"]
+      },
+      "deny": true
+    }
+  ]
+}
+```
+
+In Python:
+
+```python
+from portkey_ai import Portkey
+
+client = Portkey(
+    provider="openai",
+    Authorization="sk-***"
+)
+
+config = {
+    "input_guardrails": [{
+        "my-plugin.blockProjectCodes": {
+            "codes": ["PROJ-001", "PROJ-002", "SECRET-ROADMAP"]
+        },
+        "deny": True
+    }]
+}
+
+client = client.with_options(config=config)
+```
+
+## Step 6 — Write tests
+
+Create a Jest test file alongside your handler. The test command for plugins is:
+
+```bash
+npm run test:plugins
+# or run a specific file
+npx jest plugins/my-plugin
+```
+
+A minimal test:
+
+```typescript plugins/my-plugin/handler.test.ts
+import { handler } from './handler';
+
+describe('my-plugin.blockProjectCodes', () => {
+  it('blocks a prompt containing a project code', async () => {
+    const context = {
+      request: {
+        json: {
+          messages: [{ role: 'user', content: 'Tell me about PROJ-001' }],
+        },
+      },
+    };
+    const params = { codes: ['PROJ-001', 'PROJ-002'] };
+
+    const result = await handler(context, params, 'beforeRequestHook');
+
+    expect(result.verdict).toBe(false);
+    expect(result.error).toBeNull();
+    expect(result.data.blockedCode).toBe('PROJ-001');
+  });
+
+  it('passes a clean prompt', async () => {
+    const context = {
+      request: {
+        json: {
+          messages: [{ role: 'user', content: 'What is the weather today?' }],
+        },
+      },
+    };
+    const params = { codes: ['PROJ-001', 'PROJ-002'] };
+
+    const result = await handler(context, params, 'beforeRequestHook');
+
+    expect(result.verdict).toBe(true);
+  });
+});
+```
+
+## Contributing a plugin to the community
+
+If you'd like to share your plugin with the Portkey community:
+
+1. Ensure your plugin has test coverage.
+2. Open an issue with the title `[Feature] Your Plugin Name` on [GitHub](https://github.com/Portkey-AI/gateway/issues).
+3. Submit a pull request with the title `[New Plugin] Your Plugin Name`.
+
+Join the [Discord community](https://discord.gg/DD7vgKK299) for support and discussion.

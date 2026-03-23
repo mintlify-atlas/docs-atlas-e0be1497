@@ -1,122 +1,150 @@
 {
   "$schema": "https://mintlify.com/docs.json",
-  "theme": "mint",
-  "name": "Mint Starter Kit",
+  "name": "Portkey AI Gateway",
+  "theme": "sequoia",
   "colors": {
-    "primary": "#16A34A",
-    "light": "#07C983",
-    "dark": "#15803D"
+    "primary": "#cf5869",
+    "light": "#815c7b",
+    "dark": "#f1f1f3"
   },
-  "favicon": "/favicon.svg",
+  "favicon": "https://media.brand.dev/257147c1-dac2-4406-b9cd-0abb355dc437.jpg",
+  "logo": {
+    "light": "https://media.brand.dev/872147d7-3a72-4783-80c4-7a1115a56f32.svg",
+    "dark": "https://media.brand.dev/872147d7-3a72-4783-80c4-7a1115a56f32.svg"
+  },
+  "navbar": {
+    "primary": {
+      "type": "github",
+      "href": "https://github.com/portkey-ai/gateway"
+    }
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/portkey-ai/gateway"
+    }
+  },
   "navigation": {
     "tabs": [
       {
-        "tab": "Guides",
+        "tab": "Documentation",
         "groups": [
           {
-            "group": "Getting started",
+            "group": "Get Started",
             "pages": [
-              "index",
+              "introduction",
               "quickstart",
-              "development"
+              "supported-providers"
             ]
           },
           {
-            "group": "Customization",
+            "group": "Deployment",
             "pages": [
-              "essentials/settings",
-              "essentials/navigation"
+              "deployment/overview",
+              "deployment/docker",
+              "deployment/nodejs",
+              "deployment/cloudflare-workers",
+              "deployment/aws-ec2",
+              "deployment/configuration"
             ]
           },
           {
-            "group": "Writing content",
+            "group": "Core Concepts",
             "pages": [
-              "essentials/markdown",
-              "essentials/code",
-              "essentials/images",
-              "essentials/reusable-snippets"
+              "concepts/configs",
+              "concepts/routing",
+              "concepts/fallbacks",
+              "concepts/load-balancing",
+              "concepts/retries",
+              "concepts/caching"
             ]
           },
           {
-            "group": "AI tools",
+            "group": "Guardrails",
             "pages": [
-              "ai-tools/cursor",
-              "ai-tools/claude-code",
-              "ai-tools/windsurf"
+              "guardrails/overview",
+              "guardrails/built-in",
+              "guardrails/custom-plugins",
+              "guardrails/partner-plugins"
+            ]
+          },
+          {
+            "group": "MCP Gateway",
+            "pages": [
+              "mcp/overview",
+              "mcp/quickstart",
+              "mcp/authentication",
+              "mcp/access-control",
+              "mcp/observability"
+            ]
+          },
+          {
+            "group": "Integrations",
+            "pages": [
+              "integrations/openai-sdk",
+              "integrations/langchain",
+              "integrations/llamaindex",
+              "integrations/autogen",
+              "integrations/crewai"
+            ]
+          },
+          {
+            "group": "Plugin Development",
+            "pages": [
+              "plugins/architecture",
+              "plugins/creating-a-plugin",
+              "plugins/manifest"
             ]
           }
         ]
       },
       {
-        "tab": "API reference",
+        "tab": "API Reference",
         "groups": [
           {
-            "group": "API documentation",
+            "group": "Overview",
             "pages": [
-              "api-reference/introduction"
+              "api-reference/overview",
+              "api-reference/authentication",
+              "api-reference/headers"
             ]
           },
           {
-            "group": "Endpoint examples",
+            "group": "Chat",
             "pages": [
-              "api-reference/endpoint/get",
-              "api-reference/endpoint/create",
-              "api-reference/endpoint/delete",
-              "api-reference/endpoint/webhook"
+              "api-reference/chat-completions",
+              "api-reference/completions",
+              "api-reference/messages"
+            ]
+          },
+          {
+            "group": "Multimodal",
+            "pages": [
+              "api-reference/embeddings",
+              "api-reference/image-generations",
+              "api-reference/image-edits",
+              "api-reference/audio-speech",
+              "api-reference/audio-transcriptions",
+              "api-reference/audio-translations"
+            ]
+          },
+          {
+            "group": "Files & Batches",
+            "pages": [
+              "api-reference/files",
+              "api-reference/batches"
+            ]
+          },
+          {
+            "group": "Other",
+            "pages": [
+              "api-reference/models",
+              "api-reference/fine-tuning",
+              "api-reference/responses",
+              "api-reference/realtime"
             ]
           }
         ]
       }
-    ],
-    "global": {
-      "anchors": [
-        {
-          "anchor": "Documentation",
-          "href": "https://mintlify.com/docs",
-          "icon": "book-open-cover"
-        },
-        {
-          "anchor": "Blog",
-          "href": "https://mintlify.com/blog",
-          "icon": "newspaper"
-        }
-      ]
-    }
-  },
-  "logo": {
-    "light": "/logo/light.svg",
-    "dark": "/logo/dark.svg"
-  },
-  "navbar": {
-    "links": [
-      {
-        "label": "Support",
-        "href": "mailto:hi@mintlify.com"
-      }
-    ],
-    "primary": {
-      "type": "button",
-      "label": "Dashboard",
-      "href": "https://dashboard.mintlify.com"
-    }
-  },
-  "contextual": {
-    "options": [
-     "copy",
-     "view",
-     "chatgpt",
-     "claude",
-     "perplexity",
-     "mcp",
-     "cursor",
-     "vscode"
-   ]
-  },
-  "footer": {
-    "socials": {
-      "x": "https://x.com/mintlify",
-      "github": "https://github.com/mintlify",
-      "linkedin": "https://linkedin.com/company/mintlify"
-    }
+    ]
   }
 }

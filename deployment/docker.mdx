@@ -1,0 +1,125 @@
+---
+title: "Docker"
+description: "Deploy the Portkey AI Gateway using Docker Hub, Docker Compose, or a custom image built from source."
+---
+
+## Quick start
+
+Pull and run the latest image from Docker Hub:
+
+```bash
+docker run --rm -p 8787:8787 portkeyai/gateway:latest
+```
+
+The gateway is now listening on `http://localhost:8787`.
+
+<Note>
+  The `--rm` flag removes the container when it stops. Remove it if you want the container to persist across restarts.
+</Note>
+
+## Docker Compose
+
+Use Docker Compose for a managed, restart-on-failure setup.
+
+<Steps>
+  <Step title="Download the Compose file">
+    ```bash
+    wget "https://raw.githubusercontent.com/Portkey-AI/gateway/main/docker-compose.yaml"
+    ```
+  </Step>
+  <Step title="Start the service">
+    ```bash
+    docker compose up -d
+    ```
+
+    The service starts in the background and listens on port `8787`. The `restart: always` policy ensures it restarts automatically on failure or reboot.
+  </Step>
+</Steps>
+
+The `docker-compose.yaml` used by the command above:
+
+```yaml docker-compose.yaml
+version: '3'
+services:
+  web:
+    ports:
+      - "8787:8787"
+    image: "portkeyai/gateway:latest"
+    restart: always
+```
+
+## Build from source
+
+Build your own image from the repository if you need to modify the gateway code or pin a specific commit.
+
+<Steps>
+  <Step title="Clone the repository">
+    ```bash
+    git clone https://github.com/portkey-ai/gateway
+    cd gateway
+    ```
+  </Step>
+  <Step title="Build the image">
+    ```bash
+    docker build -t portkey-gateway .
+    ```
+
+    The Dockerfile uses a multi-stage build: a `node:20-alpine` build stage compiles the project, then a second `node:20-alpine` stage copies only the production artifacts to keep the final image small.
+  </Step>
+  <Step title="Run the image">
+    ```bash
+    docker run --rm -p 8787:8787 portkey-gateway
+    ```
+  </Step>
+</Steps>
+
+The `Dockerfile` for reference:
+
+```dockerfile Dockerfile
+# Build stage
+FROM node:20-alpine AS build
+WORKDIR /app
+COPY package*.json ./
+COPY patches ./
+RUN apk upgrade --no-cache
+RUN npm install -g npm@10.9.2
+RUN npm install
+COPY . .
+RUN npm run build \
+  && rm -rf node_modules \
+  && npm install --omit=dev
+
+# Runtime stage
+FROM node:20-alpine
+RUN apk upgrade --no-cache
+RUN npm install -g npm@10.9.2
+WORKDIR /app
+COPY --from=build /app/build /app/build
+COPY --from=build /app/node_modules /app/node_modules
+COPY --from=build /app/package.json /app/package.json
+COPY --from=build /app/patches /app/patches
+EXPOSE 8787
+ENTRYPOINT ["npm"]
+CMD ["run", "start:node"]
+```
+
+## Environment variables and configuration
+
+Mount a `conf.json` file to configure integrations, credentials, plugins, and caching:
+
+```bash
+docker run --rm -p 8787:8787 \
+  -v $(pwd)/conf.json:/app/conf.json \
+  portkeyai/gateway:latest
+```
+
+For Redis-backed caching, pass the connection string as an environment variable:
+
+```bash
+docker run --rm -p 8787:8787 \
+  -e REDIS_CONNECTION_STRING=redis://your-redis-host:6379 \
+  -v $(pwd)/conf.json:/app/conf.json \
+  portkeyai/gateway:latest
+```
+
+See the [configuration reference](/deployment/configuration) for the full `conf.json` schema and all supported environment variables.

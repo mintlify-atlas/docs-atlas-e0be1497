@@ -1,0 +1,153 @@
+---
+title: "Image edits"
+description: "Edit an existing image using a text prompt and an optional mask."
+---
+
+## POST /v1/images/edits
+
+Generates an edited version of an image based on a text prompt. You can optionally supply a mask image to restrict edits to a specific region. The request body must be sent as `multipart/form-data`.
+
+<Info>
+  This endpoint is currently supported for providers that expose an `imageEdit` operation, such as OpenAI (`dall-e-2`).
+</Info>
+
+## Request headers
+
+<ParamField header="x-portkey-provider" type="string">
+  The provider to route the request to (e.g. `openai`). Required when not using a config.
+</ParamField>
+
+<ParamField header="x-portkey-api-key" type="string">
+  Your provider API key.
+</ParamField>
+
+<ParamField header="x-portkey-config" type="string">
+  A JSON config object or config ID that defines routing, fallbacks, retries, and more.
+</ParamField>
+
+<ParamField header="x-portkey-virtual-key" type="string">
+  A virtual key ID from Portkey Cloud.
+</ParamField>
+
+## Request body
+
+<Note>
+  This endpoint accepts `multipart/form-data`. The image and mask must be uploaded as file fields, not JSON.
+</Note>
+
+<ParamField body="image" type="file" required>
+  The source image to edit. Must be a valid PNG file, less than 4 MB, and square. The image must have an alpha channel (transparency) to indicate the area to edit.
+</ParamField>
+
+<ParamField body="prompt" type="string" required>
+  A text description of the desired edit. Maximum 1000 characters.
+</ParamField>
+
+<ParamField body="mask" type="file">
+  An optional PNG mask image that defines which areas to edit. Fully transparent areas (alpha = 0) are edited; fully opaque areas are preserved. Must be the same size as the source image.
+</ParamField>
+
+<ParamField body="model" type="string" default="dall-e-2">
+  The model to use for image editing.
+</ParamField>
+
+<ParamField body="n" type="integer" default="1">
+  The number of edited images to generate. Must be between 1 and 10.
+</ParamField>
+
+<ParamField body="size" type="string" default="1024x1024">
+  The size of the generated images. One of `256x256`, `512x512`, or `1024x1024`.
+</ParamField>
+
+<ParamField body="response_format" type="string" default="url">
+  The format of the response. One of `url` or `b64_json`.
+</ParamField>
+
+<ParamField body="user" type="string">
+  A unique identifier for the end user.
+</ParamField>
+
+## Response
+
+<ResponseField name="created" type="integer">
+  Unix timestamp of when the images were created.
+</ResponseField>
+
+<ResponseField name="data" type="object[]">
+  An array of generated image objects.
+
+  <Expandable title="properties">
+    <ResponseField name="url" type="string">
+      A temporary URL for the edited image. Present when `response_format` is `url`.
+    </ResponseField>
+    <ResponseField name="b64_json" type="string">
+      The base64-encoded PNG. Present when `response_format` is `b64_json`.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Code examples
+
+<CodeGroup>
+
+```bash curl
+curl https://your-gateway-url/v1/images/edits \
+  -H "x-portkey-provider: openai" \
+  -H "x-portkey-api-key: $OPENAI_API_KEY" \
+  -F "model=dall-e-2" \
+  -F "image=@source.png" \
+  -F "mask=@mask.png" \
+  -F "prompt=Add a sunset sky in the background" \
+  -F "n=1" \
+  -F "size=1024x1024"
+```
+
+```python Python
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="https://your-gateway-url/v1",
+    api_key="$OPENAI_API_KEY",
+    default_headers={
+        "x-portkey-provider": "openai",
+    },
+)
+
+with open("source.png", "rb") as image, open("mask.png", "rb") as mask:
+    response = client.images.edit(
+        model="dall-e-2",
+        image=image,
+        mask=mask,
+        prompt="Add a sunset sky in the background",
+        n=1,
+        size="1024x1024",
+    )
+
+print(response.data[0].url)
+```
+
+```javascript JavaScript
+import OpenAI from "openai";
+import fs from "fs";
+
+const client = new OpenAI({
+  baseURL: "https://your-gateway-url/v1",
+  apiKey: process.env.OPENAI_API_KEY,
+  defaultHeaders: {
+    "x-portkey-provider": "openai",
+  },
+});
+
+const response = await client.images.edit({
+  model: "dall-e-2",
+  image: fs.createReadStream("source.png"),
+  mask: fs.createReadStream("mask.png"),
+  prompt: "Add a sunset sky in the background",
+  n: 1,
+  size: "1024x1024",
+});
+
+console.log(response.data[0].url);
+```
+
+</CodeGroup>

@@ -1,0 +1,108 @@
+---
+title: "Models"
+description: "List the models available from the configured provider through the Portkey gateway."
+---
+
+`GET /v1/models`
+
+Returns the list of models available from the configured provider. When a provider, virtual key, or config is specified in the request headers, the gateway forwards the request to that provider and returns its model list directly.
+
+If no provider is specified and a Portkey control-plane URL is configured (`ALBUS_BASEPATH`), the gateway proxies the request to the Portkey platform to retrieve the available models across your configured integrations.
+
+## Request
+
+<ParamField header="x-portkey-provider" type="string">
+  The provider to retrieve models from (e.g. `openai`, `anthropic`, `azure-openai`). When provided, the gateway forwards the request directly to the provider.
+</ParamField>
+
+<ParamField header="x-portkey-api-key" type="string" required>
+  Your Portkey API key, or the provider API key if using provider headers directly.
+</ParamField>
+
+<ParamField header="x-portkey-virtual-key" type="string">
+  A Portkey virtual key. When set, the gateway routes to the provider associated with that virtual key.
+</ParamField>
+
+<ParamField header="x-portkey-config" type="string | object">
+  A Portkey config object or config ID. The gateway reads the `provider` or `virtual_key` from the config to determine the target.
+</ParamField>
+
+## Response
+
+<ResponseField name="object" type="string">
+  Always `list`.
+</ResponseField>
+
+<ResponseField name="data" type="array">
+  <Expandable title="model object">
+    <ResponseField name="id" type="string">
+      The model identifier used in API requests (e.g. `gpt-4o`, `claude-3-5-sonnet-20241022`).
+    </ResponseField>
+    <ResponseField name="object" type="string">
+      Always `model`.
+    </ResponseField>
+    <ResponseField name="created" type="number">
+      Unix timestamp of when the model was created.
+    </ResponseField>
+    <ResponseField name="owned_by" type="string">
+      The organization that owns the model.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Examples
+
+<CodeGroup>
+
+```bash cURL
+curl https://your-gateway.example.com/v1/models \
+  -H "x-portkey-api-key: YOUR_API_KEY" \
+  -H "x-portkey-provider: openai"
+```
+
+```python Python
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="https://your-gateway.example.com/v1",
+    api_key="YOUR_API_KEY",
+    default_headers={
+        "x-portkey-provider": "openai",
+    },
+)
+
+models = client.models.list()
+for model in models.data:
+    print(model.id)
+```
+
+```javascript JavaScript
+import OpenAI from "openai";
+
+const client = new OpenAI({
+  baseURL: "https://your-gateway.example.com/v1",
+  apiKey: "YOUR_API_KEY",
+  defaultHeaders: {
+    "x-portkey-provider": "openai",
+  },
+});
+
+const models = await client.models.list();
+for (const model of models.data) {
+  console.log(model.id);
+}
+```
+
+</CodeGroup>
+
+## Routing behavior
+
+The `modelsHandler` determines where to send the request based on the following precedence:
+
+1. **Provider header present** (`x-portkey-provider`, `x-portkey-virtual-key`, or `provider`/`virtual_key` in config) — forwards the request to that specific provider's models endpoint.
+2. **No provider specified** with `ALBUS_BASEPATH` configured — proxies to the Portkey control plane at `/v2/models` to retrieve the aggregated model list across your integrations.
+3. **No provider and no control plane** — the request falls through to the next middleware handler.
+
+<Note>
+  When using virtual keys, the gateway resolves the underlying provider credentials automatically. You do not need to pass a separate provider API key.
+</Note>

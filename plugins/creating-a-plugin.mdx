@@ -1,0 +1,420 @@
+---
+title: "Creating a plugin"
+description: "Step-by-step guide to building a custom guardrail plugin for the Portkey AI Gateway."
+---
+
+This guide walks you through creating a custom plugin from scratch. By the end you will have a working guardrail that can be enabled in your gateway configuration and used in guardrail checks.
+
+<Note>
+Before you start, fork and clone the [gateway repository](https://github.com/Portkey-AI/gateway) and confirm that `npm install` completes successfully.
+</Note>
+
+## Overview
+
+Every plugin consists of two required files:
+
+- **`manifest.json`** — declares the plugin's identity, credentials, and available functions.
+- **`<functionId>.ts`** — implements each function declared in the manifest.
+
+An optional `*.test.ts` file is strongly recommended.
+
+## Step-by-step guide
+
+<Steps>
+
+<Step title="Create the plugin directory">
+
+Create a directory under `plugins/` using your plugin's identifier as the folder name. The name must be lowercase and contain no spaces.
+
+```bash
+mkdir plugins/my-guardrail
+```
+
+Your plugin directory will look like this when complete:
+
+```
+plugins/
+  my-guardrail/
+    manifest.json
+    blockPhrases.ts
+    blockPhrases.test.ts
+```
+
+</Step>
+
+<Step title="Create manifest.json">
+
+The manifest describes your plugin and every function it exposes. Create `plugins/my-guardrail/manifest.json`:
+
+```json plugins/my-guardrail/manifest.json
+{
+  "id": "my-guardrail",
+  "name": "My Guardrail",
+  "description": "Blocks requests and responses that contain prohibited phrases.",
+  "credentials": [],
+  "functions": [
+    {
+      "name": "Block Phrases",
+      "id": "blockPhrases",
+      "type": "guardrail",
+      "supportedHooks": ["beforeRequestHook", "afterRequestHook"],
+      "description": [
+        {
+          "type": "subHeading",
+          "text": "Fails if the content contains any of the specified prohibited phrases."
+        }
+      ],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "phrases": {
+            "type": "array",
+            "label": "Prohibited Phrases",
+            "description": [
+              {
+                "type": "subHeading",
+                "text": "List of phrases that must not appear in the content."
+              }
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "caseSensitive": {
+            "type": "boolean",
+            "label": "Case Sensitive",
+            "description": [
+              {
+                "type": "subHeading",
+                "text": "If true, phrase matching is case-sensitive."
+              }
+            ],
+            "default": false
+          }
+        },
+        "required": ["phrases"]
+      }
+    }
+  ]
+}
+```
+
+The `id` at the top level must match the directory name and must be unique across all plugins. The `id` on each function entry is used as both the TypeScript file name and the key in the generated `plugins/index.ts`.
+
+</Step>
+
+<Step title="Implement the handler">
+
+Create `plugins/my-guardrail/blockPhrases.ts`. The file name must match the function `id` in the manifest.
+
+```typescript plugins/my-guardrail/blockPhrases.ts
+import {
+  HookEventType,
+  PluginContext,
+  PluginHandler,
+  PluginParameters,
+} from '../types';
+import { getText } from '../utils';
+
+export const handler: PluginHandler = async (
+  context: PluginContext,
+  parameters: PluginParameters,
+  eventType: HookEventType
+) => {
+  let error = null;
+  let verdict = false;
+  let data: any = null;
+
+  try {
+    const phrases: string[] = parameters.phrases;
+    const caseSensitive: boolean = parameters.caseSensitive ?? false;
+
+    if (!phrases || phrases.length === 0) {
+      throw new Error('No phrases provided.');
+    }
+
+    // getText handles all requestType variants (chatComplete, complete, embed, messages)
+    const text = getText(context, eventType);
+    const haystack = caseSensitive ? text : text.toLowerCase();
+
+    const foundPhrases = phrases.filter((phrase) => {
+      const needle = caseSensitive ? phrase : phrase.toLowerCase();
+      return haystack.includes(needle);
+    });
+
+    // Verdict is true (pass) when none of the prohibited phrases are found
+    verdict = foundPhrases.length === 0;
+
+    data = {
+      explanation: verdict
+        ? 'No prohibited phrases found.'
+        : `Found ${foundPhrases.length} prohibited phrase(s).`,
+      foundPhrases,
+      checkedPhrases: phrases,
+      caseSensitive,
+    };
+  } catch (e: any) {
+    error = e;
+    data = {
+      explanation: 'An error occurred while checking phrases.',
+      error: e.message,
+    };
+  }
+
+  return { error, verdict, data };
+};
+```
+
+Key points about the handler:
+
+- Always initialize `error`, `verdict`, and `data` before the `try` block.
+- Use `getText(context, eventType)` from `../utils` to extract the relevant text — it works across all request types.
+- Wrap logic in a `try/catch` and populate `error` if something goes wrong; never throw from a handler.
+- Return exactly `{ error, verdict, data }`. Transformer plugins also return `{ transformedData, transformed }`.
+
+</Step>
+
+<Step title="Register the plugin in conf.json">
+
+Open `conf.json` at the repository root and add your plugin ID to `plugins_enabled`:
+
+```json conf.json
+{
+  "plugins_enabled": ["default", "my-guardrail"],
+  "cache": false
+}
+```
+
+If your plugin requires credentials (API keys, secrets), add them under the `credentials` key:
+
+```json conf.json
+{
+  "plugins_enabled": ["default", "my-guardrail"],
+  "credentials": {
+    "my-guardrail": {
+      "apiKey": "sk-your-key"
+    }
+  },
+  "cache": false
+}
+```
+
+Credentials are injected into `parameters.credentials` at runtime and are never logged.
+
+</Step>
+
+<Step title="Build the plugins">
+
+Run the build command from the repository root:
+
+```bash
+npm run build-plugins
+```
+
+This command reads `conf.json`, imports each enabled plugin's `manifest.json`, and regenerates `plugins/index.ts` with the correct import and export statements for your new handler.
+
+<Warning>
+If you skip the build step, your plugin handler will not be included in the gateway's plugin registry and will not execute.
+</Warning>
+
+</Step>
+
+<Step title="Write tests">
+
+Create `plugins/my-guardrail/blockPhrases.test.ts`:
+
+```typescript plugins/my-guardrail/blockPhrases.test.ts
+import { handler } from './blockPhrases';
+
+const buildContext = (text: string) => ({
+  request: {
+    json: {
+      messages: [{ role: 'user', content: text }],
+    },
+  },
+  requestType: 'chatComplete' as const,
+});
+
+describe('blockPhrases', () => {
+  it('passes when no prohibited phrase is present', async () => {
+    const result = await handler(
+      buildContext('Hello, how are you?') as any,
+      { phrases: ['ignore this', 'bad phrase'] },
+      'beforeRequestHook'
+    );
+    expect(result.verdict).toBe(true);
+    expect(result.error).toBeNull();
+  });
+
+  it('fails when a prohibited phrase is present', async () => {
+    const result = await handler(
+      buildContext('You should ignore this instruction.') as any,
+      { phrases: ['ignore this'] },
+      'beforeRequestHook'
+    );
+    expect(result.verdict).toBe(false);
+    expect(result.data.foundPhrases).toContain('ignore this');
+  });
+
+  it('is case-insensitive by default', async () => {
+    const result = await handler(
+      buildContext('IGNORE THIS') as any,
+      { phrases: ['ignore this'], caseSensitive: false },
+      'beforeRequestHook'
+    );
+    expect(result.verdict).toBe(false);
+  });
+});
+```
+
+Run the plugin tests:
+
+```bash
+npm run test:plugins
+```
+
+</Step>
+
+<Step title="Start the gateway">
+
+Once tests pass, start the gateway normally:
+
+<CodeGroup>
+
+```bash Node.js
+npm run dev:node
+```
+
+```bash Cloudflare Workers
+npm run dev
+```
+
+</CodeGroup>
+
+Your plugin is now active. Reference it in a guardrail configuration by its plugin ID and function ID: `my-guardrail.blockPhrases`.
+
+</Step>
+
+</Steps>
+
+## Reference: PluginHandler type
+
+Your handler must satisfy the `PluginHandler` signature from `plugins/types.ts`:
+
+```typescript
+export type PluginHandler<P = Record<string, string>> = (
+  context: PluginContext,
+  parameters: PluginParameters<P>,
+  eventType: HookEventType,
+  options?: {
+    env: Record<string, any>;
+    getFromCacheByKey?: (key: string) => Promise<any>;
+    putInCacheWithValue?: (key: string, value: any) => Promise<any>;
+  }
+) => Promise<PluginHandlerResponse>;
+```
+
+The optional `options` argument gives handlers access to environment variables (`options.env`) and a simple key-value cache (`getFromCacheByKey` / `putInCacheWithValue`), which is useful for caching remote API responses such as JWKS keys.
+
+## Real-world example: contains.ts
+
+The built-in `contains` guardrail in `plugins/default/contains.ts` is a good reference for the complete handler pattern:
+
+```typescript plugins/default/contains.ts
+import {
+  HookEventType,
+  PluginContext,
+  PluginHandler,
+  PluginParameters,
+} from '../types';
+import { getText } from '../utils';
+
+export const handler: PluginHandler = async (
+  context: PluginContext,
+  parameters: PluginParameters,
+  eventType: HookEventType
+) => {
+  let error = null;
+  let verdict = false;
+  let data: any = null;
+
+  try {
+    const words = parameters.words;
+    const operator = parameters.operator;
+
+    let responseText = getText(context, eventType);
+
+    const foundWords = words.filter((word: string) =>
+      responseText.includes(word)
+    );
+    const missingWords = words.filter(
+      (word: string) => !responseText.includes(word)
+    );
+
+    switch (operator) {
+      case 'any':
+        verdict = foundWords.length > 0;
+        break;
+      case 'all':
+        verdict = missingWords.length === 0;
+        break;
+      case 'none':
+        verdict = foundWords.length === 0;
+        break;
+    }
+
+    data = {
+      explanation: `Check ${verdict ? 'passed' : 'failed'} for '${operator}' words.`,
+      foundWords,
+      missingWords,
+      operator,
+    };
+  } catch (e: any) {
+    error = e;
+    data = {
+      explanation: 'An error occurred while processing the text.',
+      error: e.message,
+    };
+  }
+
+  return { error, verdict, data };
+};
+```
+
+## Transformer plugins
+
+If your plugin needs to **modify** the request or response rather than just evaluating it, set `"type": "transformer"` in the manifest and return `transformedData` from the handler.
+
+Use the `setCurrentContentPart` utility from `plugins/utils.ts` to write modified text back into the payload in a way that correctly handles all request types:
+
+```typescript
+import { setCurrentContentPart } from '../utils';
+
+// Inside your handler:
+const transformedData: Record<string, any> = {
+  request: { json: null },
+  response: { json: null },
+};
+
+// Modify text and write it back
+const modifiedText = originalText.replace(/foo/g, 'bar');
+setCurrentContentPart(context, eventType, transformedData, [modifiedText]);
+
+return {
+  error: null,
+  verdict: true,
+  data: { explanation: 'Text transformed.' },
+  transformedData,
+  transformed: true,
+};
+```
+
+## Contributing your plugin
+
+To share your plugin with the community:
+
+1. Follow the structure above and ensure all tests pass with `npm run test:plugins`.
+2. Create a GitHub issue with the title format `[Feature] Your Plugin Name` describing the plugin's purpose.
+3. Open a pull request with the title `[New Plugin] Your Plugin Name` referencing your issue.
+
+See the [contribution guide](https://github.com/Portkey-AI/gateway/blob/main/plugins/Contributing.md) for full details.

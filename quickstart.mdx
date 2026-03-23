@@ -1,80 +1,141 @@
 ---
 title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+description: "Get the AI Gateway running and make your first request in under 2 minutes."
 ---
 
-## Get started in three steps
+<Steps>
+  <Step title="Run the gateway">
+    Start the gateway locally with a single command. Node.js is required.
 
-Get your documentation site running locally and make your first customization.
+    ```bash
+    npx @portkey-ai/gateway
+    ```
 
-### Step 1: Set up your local environment
+    The gateway starts two endpoints:
 
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
-    
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
+    - **API**: `http://localhost:8787/v1`
+    - **Console**: `http://localhost:8787/public/`
 
-### Step 2: Deploy your changes
+    <Tip>
+      You can also run the gateway with Bun: `bunx @portkey-ai/gateway`. For Docker, Cloudflare Workers, and other deployment targets, see the [deployment overview](/deployment/overview).
+    </Tip>
+  </Step>
 
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
+  <Step title="Make your first request">
+    Send a chat completion through the gateway. The gateway accepts your provider API key directly via the `Authorization` header — no Portkey account required.
 
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
+    <CodeGroup>
 
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
+    ```python python
+    # pip install -qU portkey-ai
 
-### Step 3: Go live
+    from portkey_ai import Portkey
 
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
+    # OpenAI-compatible client pointed at your local gateway
+    client = Portkey(
+        provider="openai",  # or 'anthropic', 'bedrock', 'groq', etc.
+        Authorization="sk-***"  # your provider API key
+    )
+
+    response = client.chat.completions.create(
+        messages=[{"role": "user", "content": "What's the weather like?"}],
+        model="gpt-4o-mini"
+    )
+
+    print(response.choices[0].message.content)
+    ```
+
+    ```javascript javascript
+    // npm install portkey-ai
+
+    import Portkey from "portkey-ai";
+
+    const client = new Portkey({
+      provider: "openai",   // or 'anthropic', 'bedrock', 'groq', etc.
+      Authorization: "sk-***"  // your provider API key
+    });
+
+    const response = await client.chat.completions.create({
+      messages: [{ role: "user", content: "What's the weather like?" }],
+      model: "gpt-4o-mini",
+    });
+
+    console.log(response.choices[0].message.content);
+    ```
+
+    ```bash curl
+    curl http://localhost:8787/v1/chat/completions \
+      -H "Content-Type: application/json" \
+      -H "x-portkey-provider: openai" \
+      -H "Authorization: Bearer sk-***" \
+      -d '{
+        "model": "gpt-4o-mini",
+        "messages": [{"role": "user", "content": "What'\''s the weather like?"}]
+      }'
+    ```
+
+    </CodeGroup>
+
+    <Note>
+      Swap `provider="openai"` for any of the [250+ supported providers](/supported-providers) — the request shape stays the same.
+    </Note>
+  </Step>
+
+  <Step title="Add routing and guardrails">
+    `Config` objects let you attach routing rules, reliability settings, and guardrails to any client. Pass a config to `with_options` (Python) or `withOptions` (JavaScript) to apply it.
+
+    ```python python
+    config = {
+      "retry": {"attempts": 5},
+
+      "output_guardrails": [{
+        "default.contains": {"operator": "none", "words": ["Apple"]},
+        "deny": True
+      }]
+    }
+
+    # Attach the config to the client
+    client = client.with_options(config=config)
+
+    client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[{"role": "user", "content": "Reply randomly with Apple or Bat"}]
+    )
+
+    # Always responds with "Bat" — the guardrail blocks replies containing "Apple".
+    # The retry config retries up to 5 times before giving up.
+    ```
+
+    The config above uses two features:
+
+    - **`retry`** — automatically retries failed or blocked requests with exponential backoff, up to the specified number of attempts.
+    - **`output_guardrails`** — evaluates the LLM response before returning it. Here, any response containing the word "Apple" is denied and the request retries.
+
+    <Tip>
+      Configs also support fallbacks, load balancing, caching, request timeouts, and conditional routing. See [configs](/concepts/configs) for the full reference.
+    </Tip>
+  </Step>
+
+  <Step title="View logs in the Gateway Console">
+    Open **http://localhost:8787/public/** to see all requests logged in real time.
+
+    The console shows request and response bodies, latency, provider used, model, token counts, and whether any guardrails fired. No configuration needed — logging is on by default.
+  </Step>
+</Steps>
 
 ## Next steps
 
-Now that you have your docs running, explore these key features:
-
 <CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
+  <Card title="Supported providers" icon="server" href="/supported-providers">
+    Browse all 250+ providers, including OpenAI, Anthropic, Gemini, Bedrock, Ollama, and more.
+  </Card>
+  <Card title="Routing & configs" icon="shuffle" href="/concepts/configs">
+    Define fallbacks, load balancing, retries, and conditional routing in a single JSON config.
+  </Card>
+  <Card title="Guardrails" icon="shield-check" href="/guardrails/overview">
+    Validate LLM inputs and outputs with 50+ built-in checks or bring your own plugin.
+  </Card>
+  <Card title="Deployment" icon="cloud" href="/deployment/overview">
+    Deploy to Docker, Node.js, Cloudflare Workers, AWS EC2, or use the managed Portkey Cloud.
+  </Card>
 </CardGroup>
-
-<Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
-</Note>

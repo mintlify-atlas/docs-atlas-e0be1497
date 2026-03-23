@@ -1,0 +1,154 @@
+---
+title: "Retries"
+description: "Automatically retry failed LLM requests with exponential backoff and configurable status code filtering."
+---
+
+The AI Gateway retries failed requests automatically, using exponential backoff to space out attempts and avoid overwhelming rate-limited providers. Retries apply to the current target before any fallback is triggered.
+
+## Configuration
+
+```json
+{
+  "retry": {
+    "attempts": 5,
+    "on_status_codes": [429, 500, 502, 503, 504]
+  }
+}
+```
+
+<ParamField body="retry.attempts" type="number" required>
+  Maximum number of retry attempts. The gateway supports up to **5** retries per target. Must be a positive integer.
+</ParamField>
+
+<ParamField body="retry.on_status_codes" type="array">
+  HTTP status codes that trigger a retry. Defaults to `[429, 500, 502, 503, 504]`.
+  Errors with codes **not** in this list cause the request to fail immediately without retrying.
+</ParamField>
+
+## Default retry behavior
+
+The default retryable status codes are:
+
+| Status code | Meaning |
+|---|---|
+| `429` | Too Many Requests (rate limited) |
+| `500` | Internal Server Error |
+| `502` | Bad Gateway |
+| `503` | Service Unavailable |
+| `504` | Gateway Timeout |
+
+<CodeGroup>
+
+```python python
+from portkey_ai import Portkey
+
+client = Portkey(
+    provider="openai",
+    Authorization="sk-...",
+    config={
+      "retry": {
+        "attempts": 5,
+        "on_status_codes": [429, 500, 502, 503, 504]
+      }
+    }
+)
+
+client.chat.completions.create(
+    model="gpt-4o-mini",
+    messages=[{"role": "user", "content": "Hello"}]
+)
+```
+
+```javascript javascript
+import Portkey from "portkey-ai";
+
+const client = new Portkey({
+  provider: "openai",
+  Authorization: "sk-...",
+  config: {
+    retry: {
+      attempts: 5,
+      on_status_codes: [429, 500, 502, 503, 504]
+    }
+  }
+});
+```
+
+```json config only
+{
+  "retry": {
+    "attempts": 3,
+    "on_status_codes": [429, 503]
+  }
+}
+```
+
+</CodeGroup>
+
+## Exponential backoff
+
+The gateway uses an exponential backoff strategy between retry attempts to prevent network overload. Retry intervals increase with each failed attempt.
+
+The total retry window is capped at **60 seconds** (`MAX_RETRY_LIMIT_MS`). If a provider's `retry-after` header specifies a wait time longer than the remaining window, the retry is skipped and the error is returned immediately.
+
+## Provider-supplied retry delays
+
+When a `429` response includes a `retry-after`, `retry-after-ms`, or `x-ms-retry-after-ms` header, the gateway honors that delay before retrying:
+
+```typescript
+// Recognized retry-after headers (from globals.ts)
+const POSSIBLE_RETRY_STATUS_HEADERS = [
+  'retry-after-ms',
+  'x-ms-retry-after-ms',
+  'retry-after',
+];
+```
+
+If the provider-specified delay exceeds the 60-second window, the retry is skipped.
+
+## Retries and timeouts
+
+If a `request_timeout` is set on the target, each individual attempt is subject to that timeout. A timed-out request returns a `408` status and — if `408` is in `on_status_codes` — is retried.
+
+```json
+{
+  "retry": {"attempts": 3, "on_status_codes": [408, 429, 503]},
+  "targets": [{
+    "provider": "openai",
+    "request_timeout": 10000
+  }]
+}
+```
+
+## Retries with fallbacks
+
+Retries and fallbacks are applied in sequence:
+
+1. The gateway sends the request to the first target.
+2. If it fails with a retryable status code, it retries (up to `attempts` times).
+3. Only after all retry attempts are exhausted does the gateway move to the next fallback target.
+
+```json
+{
+  "strategy": {"mode": "fallback"},
+  "retry": {"attempts": 2},
+  "targets": [
+    {"provider": "openai", "override_params": {"model": "gpt-4o"}},
+    {"provider": "anthropic", "override_params": {"model": "claude-3-5-sonnet-20241022"}}
+  ]
+}
+```
+
+With this config, the gateway makes up to 3 total requests to OpenAI (1 + 2 retries), then falls back to Anthropic if all fail.
+
+<Warning>
+  Streaming responses are not retried. If a streaming request fails mid-stream, the error is returned to the caller immediately.
+</Warning>
+
+## Response headers
+
+The gateway includes retry metadata in the response headers:
+
+| Header | Description |
+|---|---|
+| `x-portkey-retry-attempt-count` | Number of retry attempts made for the final response |

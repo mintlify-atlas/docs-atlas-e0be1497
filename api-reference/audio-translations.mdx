@@ -1,0 +1,156 @@
+---
+title: "Audio translations"
+description: "Translate audio from any supported language into English text."
+---
+
+## POST /v1/audio/translations
+
+Translates audio from a non-English language into English text. The request body must be sent as `multipart/form-data` with the audio file included as a file field. This endpoint maps to the `createTranslation` operation and is compatible with the OpenAI Whisper translation API.
+
+<Info>
+  This endpoint always produces English output. To transcribe audio without translation, use [audio transcriptions](/api-reference/audio-transcriptions) instead.
+</Info>
+
+## Request headers
+
+<ParamField header="x-portkey-provider" type="string">
+  The provider to route the request to (e.g. `openai`). Required when not using a config.
+</ParamField>
+
+<ParamField header="x-portkey-api-key" type="string">
+  Your provider API key.
+</ParamField>
+
+<ParamField header="x-portkey-config" type="string">
+  A JSON config object or config ID that defines routing, fallbacks, retries, and more.
+</ParamField>
+
+<ParamField header="x-portkey-virtual-key" type="string">
+  A virtual key ID from Portkey Cloud.
+</ParamField>
+
+## Request body
+
+<Note>
+  This endpoint accepts `multipart/form-data`. The audio file must be uploaded as a file field named `file`.
+</Note>
+
+<ParamField body="file" type="file" required>
+  The audio file to translate. Supported formats: `flac`, `mp3`, `mp4`, `mpeg`, `mpga`, `m4a`, `ogg`, `wav`, `webm`. Maximum file size is 25 MB.
+</ParamField>
+
+<ParamField body="model" type="string" required>
+  The speech-to-text model to use (e.g. `whisper-1`).
+</ParamField>
+
+<ParamField body="prompt" type="string">
+  Optional English text to guide the model's output style or provide context. The prompt should be in English even if the source audio is in another language.
+</ParamField>
+
+<ParamField body="response_format" type="string" default="json">
+  The format of the translation output. One of `json`, `text`, `srt`, `verbose_json`, or `vtt`.
+</ParamField>
+
+<ParamField body="temperature" type="number" default="0">
+  Sampling temperature between `0` and `1`. Higher values produce more varied output.
+</ParamField>
+
+## Response
+
+The response format depends on the `response_format` parameter.
+
+**`json` (default)**
+
+<ResponseField name="text" type="string">
+  The translated English text.
+</ResponseField>
+
+**`verbose_json`**
+
+<ResponseField name="text" type="string">
+  The full translated text.
+</ResponseField>
+
+<ResponseField name="language" type="string">
+  The detected language of the source audio.
+</ResponseField>
+
+<ResponseField name="duration" type="number">
+  The duration of the audio file in seconds.
+</ResponseField>
+
+<ResponseField name="segments" type="object[]">
+  Segment-level data for the translation.
+
+  <Expandable title="properties">
+    <ResponseField name="id" type="integer">
+      Segment index.
+    </ResponseField>
+    <ResponseField name="start" type="number">
+      Start time of the segment in seconds.
+    </ResponseField>
+    <ResponseField name="end" type="number">
+      End time of the segment in seconds.
+    </ResponseField>
+    <ResponseField name="text" type="string">
+      The translated text for this segment.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+**`text`, `srt`, `vtt`** — Plain-text or subtitle format strings.
+
+## Code examples
+
+<CodeGroup>
+
+```bash curl
+curl https://your-gateway-url/v1/audio/translations \
+  -H "x-portkey-provider: openai" \
+  -H "x-portkey-api-key: $OPENAI_API_KEY" \
+  -F "model=whisper-1" \
+  -F "file=@german_speech.mp3" \
+  -F "response_format=json"
+```
+
+```python Python
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="https://your-gateway-url/v1",
+    api_key="$OPENAI_API_KEY",
+    default_headers={
+        "x-portkey-provider": "openai",
+    },
+)
+
+with open("german_speech.mp3", "rb") as audio_file:
+    response = client.audio.translations.create(
+        model="whisper-1",
+        file=audio_file,
+    )
+
+print(response.text)
+```
+
+```javascript JavaScript
+import OpenAI from "openai";
+import fs from "fs";
+
+const client = new OpenAI({
+  baseURL: "https://your-gateway-url/v1",
+  apiKey: process.env.OPENAI_API_KEY,
+  defaultHeaders: {
+    "x-portkey-provider": "openai",
+  },
+});
+
+const response = await client.audio.translations.create({
+  model: "whisper-1",
+  file: fs.createReadStream("german_speech.mp3"),
+});
+
+console.log(response.text);
+```
+
+</CodeGroup>

@@ -1,0 +1,106 @@
+---
+title: "Portkey AI Gateway"
+description: "A blazing fast AI gateway — route to 250+ LLMs with built-in guardrails, load balancing, fallbacks, and MCP support."
+---
+
+<img
+  className="block"
+  src="https://cfassets.portkey.ai/sdk.gif"
+  alt="Portkey AI Gateway Demo"
+/>
+
+## What is the AI Gateway?
+
+The **Portkey AI Gateway** is a lightweight, open-source middleware layer that sits between your application and any AI provider. It gives you a single, consistent API to call 250+ language, vision, audio, and image models — with production-grade reliability features built in.
+
+- **Sub-1ms overhead** — tiny 122kb footprint, runs on Node.js, Cloudflare Workers, and Docker
+- **Battle-tested** — processing over 10 billion tokens per day in production
+- **OpenAI-compatible** — drop-in replacement for the OpenAI client; works with any SDK
+
+## Core capabilities
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Get your gateway running and make your first request in under 2 minutes.
+  </Card>
+  <Card title="Supported providers" icon="server" href="/supported-providers">
+    Explore all 250+ supported LLM providers and model types.
+  </Card>
+  <Card title="Routing & configs" icon="shuffle" href="/concepts/configs">
+    Define routing rules, fallbacks, retries, and load balancing in JSON configs.
+  </Card>
+  <Card title="Guardrails" icon="shield-check" href="/guardrails/overview">
+    Validate and filter LLM inputs and outputs with 50+ built-in checks.
+  </Card>
+  <Card title="MCP Gateway" icon="plug" href="/mcp/overview">
+    Manage MCP servers with centralized auth, access control, and observability.
+  </Card>
+  <Card title="Deployment" icon="cloud" href="/deployment/overview">
+    Deploy to Docker, Node.js, Cloudflare Workers, AWS, GCP, or Azure.
+  </Card>
+</CardGroup>
+
+## Key features
+
+### Reliable routing
+
+- **Fallbacks** — automatically switch to another provider or model on failure
+- **Automatic retries** — exponential backoff with up to 5 retry attempts
+- **Load balancing** — distribute traffic across multiple API keys or providers by weight
+- **Request timeouts** — terminate slow requests after a configurable duration
+- **Conditional routing** — route to different targets based on request metadata
+
+### Security & accuracy
+
+- **Guardrails** — 50+ pre-built checks for content, format, PII, and more
+- **Custom plugins** — bring your own guardrail logic via the plugin system
+- **Partner integrations** — Aporia, Pangea, Patronus, Pillar, and more
+- **JWT validation** — verify bearer tokens before forwarding requests
+
+### Multi-modal support
+
+- Chat completions, text completions, and embeddings
+- Image generation and editing
+- Audio speech synthesis, transcription, and translation
+- Realtime WebSocket APIs (OpenAI Realtime)
+- Batch processing and fine-tuning job management
+
+### MCP Gateway
+
+The [MCP Gateway](/mcp/overview) provides a centralized control plane for Model Context Protocol servers — with authentication, access control, observability, and identity forwarding out of the box. Works with Claude Desktop, Cursor, VS Code, and any MCP-compatible client.
+
+## Self-hosted and managed
+
+<CardGroup cols={2}>
+  <Card title="Self-hosted" icon="house-signal" href="/deployment/overview">
+    Run the gateway on your own infrastructure — Docker, Node.js, Kubernetes, and more.
+  </Card>
+  <Card title="Portkey Cloud" icon="cloud" href="https://app.portkey.ai">
+    Use the managed Portkey API — zero infrastructure, free developer tier available.
+  </Card>
+</CardGroup>
+
+## Integrations
+
+The gateway works natively with popular AI frameworks and SDKs:
+
+<CardGroup cols={3}>
+  <Card title="OpenAI SDK" icon="code" href="/integrations/openai-sdk">
+    Drop-in compatible with the official OpenAI Python and Node.js SDKs.
+  </Card>
+  <Card title="LangChain" icon="link" href="/integrations/langchain">
+    Use Portkey as the LLM provider in any LangChain chain or agent.
+  </Card>
+  <Card title="LlamaIndex" icon="database" href="/integrations/llamaindex">
+    Integrate with LlamaIndex data pipelines and query engines.
+  </Card>
+  <Card title="Autogen" icon="robot" href="/integrations/autogen">
+    Power multi-agent conversations with any provider through Autogen.
+  </Card>
+  <Card title="CrewAI" icon="users" href="/integrations/crewai">
+    Route CrewAI agent crews through the gateway for observability.
+  </Card>
+  <Card title="More integrations" icon="ellipsis" href="https://github.com/portkey-ai/gateway/tree/main/cookbook">
+    Explore cookbooks for Vercel AI SDK, Phidata, Control Flow, and more.
+  </Card>
+</CardGroup>

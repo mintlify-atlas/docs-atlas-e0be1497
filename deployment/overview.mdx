@@ -1,0 +1,57 @@
+---
+title: "Deployment overview"
+description: "Choose how to deploy the Portkey AI Gateway — managed cloud, self-hosted Node.js, Docker, Cloudflare Workers, AWS EC2, or a one-click platform."
+---
+
+The Portkey AI Gateway can be deployed in several ways depending on your infrastructure requirements, latency needs, and operational preferences.
+
+<CardGroup cols={2}>
+  <Card title="Portkey Cloud" icon="cloud" href="https://app.portkey.ai/">
+    Fully managed deployment. No infrastructure to run. Portkey processes billions of tokens daily for production workloads.
+  </Card>
+  <Card title="Node.js" icon="node" href="/deployment/nodejs">
+    Run the gateway locally or on any Node.js server with a single `npx` command or by building from source.
+  </Card>
+  <Card title="Docker" icon="docker" href="/deployment/docker">
+    Pull the official Docker Hub image and run with a single command. Docker Compose supported.
+  </Card>
+  <Card title="Cloudflare Workers" icon="bolt" href="/deployment/cloudflare-workers">
+    Deploy to Cloudflare's global edge network for low-latency routing close to your users.
+  </Card>
+  <Card title="AWS EC2" icon="aws" href="/deployment/aws-ec2">
+    Deploy on EC2 using the provided CloudFormation template for repeatable, infrastructure-as-code provisioning.
+  </Card>
+  <Card title="Replit" icon="code" href="https://replit.com/@portkey/AI-Gateway?v=1">
+    One-click deploy on Replit for quick experimentation.
+  </Card>
+  <Card title="Zeabur" icon="server" href="https://zeabur.com/templates/RU38E3">
+    One-click deploy on Zeabur using the official template.
+  </Card>
+  <Card title="Supabase Functions" icon="database" href="https://supabase.com/docs">
+    Deploy the gateway as a Supabase Edge Function alongside your existing Supabase project.
+  </Card>
+</CardGroup>
+
+## Comparison
+
+| Option | Infrastructure | Cold start | Edge network | Custom config |
+|---|---|---|---|---|
+| Portkey Cloud | Managed | None | Yes | Via dashboard |
+| Node.js | Self-hosted | Fast | No | `conf.json` |
+| Docker | Self-hosted | Fast | No | `conf.json` + env vars |
+| Cloudflare Workers | Serverless | Sub-ms | Yes | `wrangler.toml` |
+| AWS EC2 | Self-hosted | Fast | No | `conf.json` + env vars |
+| Replit | Managed | Moderate | No | Limited |
+| Zeabur | Managed | Moderate | No | Via dashboard |
+| Supabase Functions | Serverless | Moderate | Yes | Limited |
+
+## Choosing a deployment
+
+- **No infrastructure management** — Use [Portkey Cloud](https://app.portkey.ai/). It runs the same gateway code and is battle-tested at scale.
+- **Full control over data and configuration** — Use [Docker](/deployment/docker) or [Node.js](/deployment/nodejs) on your own infrastructure.
+- **Global edge distribution** — Use [Cloudflare Workers](/deployment/cloudflare-workers) for sub-millisecond overhead close to your users.
+- **AWS-native infrastructure** — Use [AWS EC2](/deployment/aws-ec2) with the bundled CloudFormation template.
+
+## Configuration
+
+All self-hosted deployments share the same configuration format. See the [configuration reference](/deployment/configuration) for a full description of `conf.json` fields and environment variables.

@@ -1,0 +1,177 @@
+---
+title: "LlamaIndex"
+description: "Use Portkey as the LLM and embedding backend in LlamaIndex pipelines and agents."
+---
+
+[LlamaIndex](https://github.com/run-llama/llama_index) is a data framework for building LLM applications over your own data, including RAG pipelines, query engines, and multi-agent systems. By setting `api_base` to the gateway URL, all LlamaIndex LLM calls route through Portkey.
+
+## Installation
+
+<Steps>
+  <Step title="Start the gateway">
+    <Tabs>
+      <Tab title="Local (npx)">
+        ```bash
+        npx @portkey-ai/gateway
+        ```
+
+        The gateway listens at `http://localhost:8787/v1`.
+      </Tab>
+      <Tab title="Portkey Cloud">
+        Sign up at [app.portkey.ai](https://app.portkey.ai) and copy your API key. Use `https://api.portkey.ai/v1` as the base URL.
+      </Tab>
+    </Tabs>
+  </Step>
+
+  <Step title="Install dependencies">
+    ```bash
+    pip install llama-index llama-index-llms-openai portkey-ai
+    ```
+  </Step>
+</Steps>
+
+## Basic setup
+
+Set `api_base` on the `OpenAI` LLM class to point at the gateway.
+
+```python
+from llama_index.llms.openai import OpenAI
+
+llm = OpenAI(
+    model="gpt-4o",
+    api_base="http://localhost:8787/v1",
+    api_key="sk-***"
+)
+
+response = llm.complete("What is the Portkey AI Gateway?")
+print(response.text)
+```
+
+## Adding routing configs via headers
+
+Pass gateway configs through `default_headers` to enable retries, caching, fallbacks, and other features.
+
+<CodeGroup>
+
+```python Local gateway with config header
+from llama_index.llms.openai import OpenAI
+import json
+
+config = {
+    "retry": {"attempts": 3},
+    "cache": {"mode": "simple"}
+}
+
+llm = OpenAI(
+    model="gpt-4o",
+    api_base="http://localhost:8787/v1",
+    api_key="sk-***",
+    default_headers={
+        "x-portkey-config": json.dumps(config)
+    }
+)
+```
+
+```python Portkey Cloud with virtual key
+from llama_index.llms.openai import OpenAI
+from portkey_ai import PORTKEY_GATEWAY_URL, createHeaders
+
+gpt_4o_config = {
+    "provider": "openai",
+    "api_key": "sk-***",
+    "override_params": {"model": "gpt-4o"}
+}
+
+llm = OpenAI(
+    api_base=PORTKEY_GATEWAY_URL,
+    default_headers=createHeaders(
+        api_key="YOUR_PORTKEY_API_KEY",
+        config=gpt_4o_config
+    )
+)
+
+response = llm.complete("Explain LLM routing in one sentence.")
+print(response.text)
+```
+
+</CodeGroup>
+
+## Using in a query engine
+
+Once the LLM is configured, pass it to `Settings` and build any LlamaIndex index or query engine as normal.
+
+```python
+from llama_index.core import VectorStoreIndex, SimpleDirectoryReader, Settings
+from llama_index.llms.openai import OpenAI
+
+Settings.llm = OpenAI(
+    model="gpt-4o",
+    api_base="http://localhost:8787/v1",
+    api_key="sk-***"
+)
+
+# Load documents and build an index
+documents = SimpleDirectoryReader("./docs").load_data()
+index = VectorStoreIndex.from_documents(documents)
+
+# Query the index
+query_engine = index.as_query_engine()
+response = query_engine.query("What topics are covered in the docs?")
+print(response)
+```
+
+## Real-world use case: multi-agent system with multiple LLMs
+
+Route different agents to different LLMs through the gateway, with full observability over every request.
+
+```python
+from llama_index.llms.openai import OpenAI
+from llama_index.core.agent import ReActAgent
+from llama_index.core.tools import FunctionTool
+from portkey_ai import PORTKEY_GATEWAY_URL, createHeaders
+
+# Orchestrator using GPT-4o
+gpt_4o_config = {
+    "provider": "openai",
+    "api_key": "sk-***",
+    "override_params": {"model": "gpt-4o"}
+}
+
+gpt_4o = OpenAI(
+    api_base=PORTKEY_GATEWAY_URL,
+    default_headers=createHeaders(
+        api_key="YOUR_PORTKEY_API_KEY",
+        config=gpt_4o_config
+    )
+)
+
+# Worker using a faster model
+llama3_config = {
+    "provider": "groq",
+    "api_key": "gsk-***",
+    "override_params": {"model": "llama3-70b-8192"}
+}
+
+llama3 = OpenAI(
+    api_base=PORTKEY_GATEWAY_URL,
+    default_headers=createHeaders(
+        api_key="YOUR_PORTKEY_API_KEY",
+        config=llama3_config
+    )
+)
+
+
+def get_the_secret_fact() -> str:
+    """Returns the secret fact."""
+    return "A baby llama is called a 'Cria'."
+
+
+tool = FunctionTool.from_defaults(fn=get_the_secret_fact)
+
+agent1 = ReActAgent.from_tools([tool], llm=llama3)
+agent2 = ReActAgent.from_tools([], llm=llama3)
+```
+
+<Tip>
+  When using the hosted gateway, all LlamaIndex requests appear in the Portkey observability dashboard with token counts, latency, and cost — without any additional instrumentation.
+</Tip>

@@ -1,0 +1,271 @@
+---
+title: "Supported providers"
+description: "The AI Gateway routes to 250+ LLMs across all major cloud providers, open-source models, and specialized APIs — using a single OpenAI-compatible interface."
+---
+
+## Major providers
+
+<CardGroup cols={2}>
+  <Card title="OpenAI" icon="robot">
+    Chat, completions, embeddings, image generation, audio speech, transcription, translation, files, batches, fine-tuning, and realtime WebSocket APIs.
+  </Card>
+  <Card title="Anthropic" icon="brain">
+    Chat completions and completions via the native Messages API or the OpenAI-compatible interface.
+  </Card>
+  <Card title="Google Gemini" icon="google">
+    Chat completions and embeddings via the Gemini API.
+  </Card>
+  <Card title="Google Vertex AI" icon="cloud">
+    Chat completions, embeddings, image generation, fine-tuning, batches, and Anthropic Messages on Vertex.
+  </Card>
+  <Card title="Azure OpenAI" icon="microsoft">
+    Chat, completions, embeddings, image generation, audio, batches, and fine-tuning through Azure-hosted OpenAI models.
+  </Card>
+  <Card title="AWS Bedrock" icon="aws">
+    Chat, completions, embeddings, image generation, batches, fine-tuning, and Anthropic Messages on Bedrock.
+  </Card>
+  <Card title="Mistral AI" icon="wind">
+    Chat completions and embeddings.
+  </Card>
+  <Card title="Cohere" icon="c">
+    Chat, completions, embeddings, files, and batches.
+  </Card>
+</CardGroup>
+
+## Using a provider
+
+Set `provider` to the provider's identifier and pass its API key as `Authorization`. The request shape is identical across all providers.
+
+<CodeGroup>
+
+```python openai
+from portkey_ai import Portkey
+
+client = Portkey(
+    provider="openai",
+    Authorization="sk-***"
+)
+
+client.chat.completions.create(
+    model="gpt-4o-mini",
+    messages=[{"role": "user", "content": "Hello!"}]
+)
+```
+
+```python anthropic
+from portkey_ai import Portkey
+
+client = Portkey(
+    provider="anthropic",
+    Authorization="sk-ant-***"
+)
+
+client.chat.completions.create(
+    model="claude-3-5-sonnet-20241022",
+    messages=[{"role": "user", "content": "Hello!"}]
+)
+```
+
+```python google-gemini
+from portkey_ai import Portkey
+
+client = Portkey(
+    provider="google",
+    Authorization="AIza***"
+)
+
+client.chat.completions.create(
+    model="gemini-1.5-flash",
+    messages=[{"role": "user", "content": "Hello!"}]
+)
+```
+
+```python bedrock
+from portkey_ai import Portkey
+
+client = Portkey(
+    provider="bedrock",
+    Authorization="AWS_ACCESS_KEY:AWS_SECRET_KEY",
+    aws_region="us-east-1"
+)
+
+client.chat.completions.create(
+    model="anthropic.claude-3-5-sonnet-20241022-v2:0",
+    messages=[{"role": "user", "content": "Hello!"}]
+)
+```
+
+```python ollama
+from portkey_ai import Portkey
+
+client = Portkey(
+    provider="ollama",
+    custom_host="http://localhost:11434"  # your Ollama server
+)
+
+client.chat.completions.create(
+    model="llama3.2",
+    messages=[{"role": "user", "content": "Hello!"}]
+)
+```
+
+```python groq
+from portkey_ai import Portkey
+
+client = Portkey(
+    provider="groq",
+    Authorization="gsk_***"
+)
+
+client.chat.completions.create(
+    model="llama-3.3-70b-versatile",
+    messages=[{"role": "user", "content": "Hello!"}]
+)
+```
+
+</CodeGroup>
+
+## All providers
+
+The table below lists every provider available in the gateway. Feature support is derived from the handler files present in each provider's source directory.
+
+| Provider | ID | Chat | Completions | Embeddings | Images | Audio | Batches | Fine-tuning |
+|---|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| OpenAI | `openai` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Azure OpenAI | `azure-openai` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Anthropic | `anthropic` | ✅ | ✅ | — | — | — | — | — |
+| Google Gemini | `google` | ✅ | — | ✅ | — | — | — | — |
+| Google Vertex AI | `vertex-ai` | ✅ | — | ✅ | ✅ | — | ✅ | ✅ |
+| AWS Bedrock | `bedrock` | ✅ | ✅ | ✅ | ✅ | — | ✅ | ✅ |
+| AWS SageMaker | `sagemaker` | ✅ | — | — | — | — | — | — |
+| Azure AI Inference | `azure-ai-inference` | ✅ | — | — | — | — | — | — |
+| Mistral AI | `mistral-ai` | ✅ | — | ✅ | — | — | — | — |
+| Cohere | `cohere` | ✅ | ✅ | ✅ | — | — | ✅ | — |
+| Groq | `groq` | ✅ | — | — | — | — | — | — |
+| Together AI | `together-ai` | ✅ | ✅ | ✅ | — | — | — | — |
+| Fireworks AI | `fireworks-ai` | ✅ | ✅ | ✅ | ✅ | — | — | ✅ |
+| Perplexity AI | `perplexity-ai` | ✅ | — | — | — | — | — | — |
+| DeepSeek | `deepseek` | ✅ | — | — | — | — | — | — |
+| DeepInfra | `deepinfra` | ✅ | — | — | — | — | — | — |
+| Ollama | `ollama` | ✅ | — | ✅ | — | — | — | — |
+| OpenRouter | `openrouter` | ✅ | — | — | — | — | — | — |
+| Anyscale | `anyscale` | ✅ | — | — | — | — | — | — |
+| Hugging Face | `huggingface` | ✅ | ✅ | — | — | — | — | — |
+| Replicate | `replicate` | ✅ | — | — | — | — | — | — |
+| Stability AI | `stability-ai` | — | — | — | ✅ | — | — | — |
+| Cloudflare Workers AI | `workers-ai` | ✅ | ✅ | ✅ | ✅ | — | — | — |
+| Novita AI | `novita-ai` | ✅ | — | — | — | — | — | — |
+| Cerebras | `cerebras` | ✅ | — | — | — | — | — | — |
+| X AI (Grok) | `x-ai` | ✅ | — | — | — | — | — | — |
+| Hyperbolic | `hyperbolic` | ✅ | — | — | — | — | — | — |
+| SambaNova | `sambanova` | ✅ | — | — | — | — | — | — |
+| Nebius | `nebius` | ✅ | — | — | — | — | — | — |
+| Lambda | `lambda` | ✅ | — | — | — | — | — | — |
+| Modal | `modal` | ✅ | — | — | — | — | — | — |
+| Predibase | `predibase` | ✅ | — | — | — | — | — | — |
+| Lepton AI | `lepton` | ✅ | — | — | — | — | — | — |
+| Moonshot | `moonshot` | ✅ | — | — | — | — | — | — |
+| Voyage AI | `voyage` | — | — | ✅ | — | — | — | — |
+| Nomic | `nomic` | — | — | ✅ | — | — | — | — |
+| Jina | `jina` | — | — | ✅ | — | — | — | — |
+| AI21 | `ai21` | ✅ | — | — | — | — | — | — |
+| Reka AI | `reka-ai` | ✅ | — | — | — | — | — | — |
+| Upstage | `upstage` | ✅ | — | — | — | — | — | — |
+| OVHcloud | `ovhcloud` | ✅ | — | — | — | — | — | — |
+| Oracle Cloud | `oracle` | ✅ | — | — | — | — | — | — |
+| Kluster AI | `kluster-ai` | ✅ | — | — | — | — | — | — |
+| nScale | `nscale` | ✅ | — | — | — | — | — | — |
+| nCompass | `ncompass` | ✅ | — | — | — | — | — | — |
+| Featherless AI | `featherless-ai` | ✅ | — | — | — | — | — | — |
+| Inference.net | `inference-net` | ✅ | — | — | — | — | — | — |
+| IO Intelligence | `iointelligence` | ✅ | — | — | — | — | — | — |
+| Segmind | `segmind` | — | — | — | ✅ | — | — | — |
+| Recraft AI | `recraft-ai` | — | — | — | ✅ | — | — | — |
+| Meshy | `meshy` | — | — | — | ✅ | — | — | — |
+| Tripo3D | `tripo3d` | — | — | — | ✅ | — | — | — |
+| SiliconFlow | `siliconflow` | ✅ | — | — | — | — | — | — |
+| Dashscope (Alibaba) | `dashscope` | ✅ | — | — | — | — | — | — |
+| Zhipu AI | `zhipu` | ✅ | — | — | — | — | — | — |
+| Lingyi (01.AI) | `lingyi` | ✅ | — | — | — | — | — | — |
+| Krutrim | `krutrim` | ✅ | — | — | — | — | — | — |
+| Monsterapi | `monsterapi` | ✅ | — | — | — | — | — | — |
+| Triton | `triton` | ✅ | — | — | — | — | — | — |
+| Cortex | `cortex` | ✅ | — | — | — | — | — | — |
+| Palm | `palm` | ✅ | — | — | — | — | — | — |
+| Nextbit | `nextbit` | ✅ | — | — | — | — | — | — |
+| Bytez | `bytez` | ✅ | — | — | — | — | — | — |
+| CometAPI | `cometapi` | ✅ | — | — | — | — | — | — |
+| Deepbricks | `deepbricks` | ✅ | — | — | — | — | — | — |
+| LemonFox AI | `lemonfox-ai` | ✅ | — | — | — | — | — | — |
+| Matterai | `matterai` | ✅ | — | — | — | — | — | — |
+| Hyperbolic | `hyperbolic` | ✅ | — | — | — | — | — | — |
+| Qdrant | `qdrant` | — | — | ✅ | — | — | — | — |
+| Milvus | `milvus` | — | — | ✅ | — | — | — | — |
+| AI Badger | `aibadgr` | ✅ | — | — | — | — | — | — |
+| 302.AI | `302ai` | ✅ | — | — | — | — | — | — |
+| Z AI | `z-ai` | ✅ | — | — | — | — | — | — |
+
+<Note>
+  The gateway also proxies any OpenAI-compatible endpoint via the `openai-base` and `anthropic-base` providers. Point `custom_host` at any self-hosted or third-party API that speaks the OpenAI or Anthropic wire format.
+</Note>
+
+## Provider categories
+
+<Tabs>
+  <Tab title="OpenAI-compatible">
+    These providers expose an OpenAI-compatible API. The gateway routes to them with no request transformation.
+
+    - **OpenAI** — `openai`
+    - **Azure OpenAI** — `azure-openai`
+    - **Groq** — `groq`
+    - **OpenRouter** — `openrouter`
+    - **DeepSeek** — `deepseek`
+    - **Cerebras** — `cerebras`
+    - **X AI (Grok)** — `x-ai`
+    - **SambaNova** — `sambanova`
+    - **Nebius** — `nebius`
+    - **Lambda** — `lambda`
+    - **Hyperbolic** — `hyperbolic`
+    - **Together AI** — `together-ai`
+    - **Fireworks AI** — `fireworks-ai`
+    - **Anyscale** — `anyscale`
+    - **Perplexity AI** — `perplexity-ai`
+  </Tab>
+  <Tab title="Cloud providers">
+    Full managed cloud deployments with their own authentication models.
+
+    - **AWS Bedrock** — `bedrock` (AWS SigV4 authentication)
+    - **AWS SageMaker** — `sagemaker`
+    - **Google Vertex AI** — `vertex-ai` (Google service account or ADC)
+    - **Azure AI Inference** — `azure-ai-inference`
+    - **Oracle Cloud** — `oracle`
+    - **OVHcloud** — `ovhcloud`
+  </Tab>
+  <Tab title="Open source / self-hosted">
+    Run locally or on your own infrastructure.
+
+    - **Ollama** — `ollama` (set `custom_host` to your Ollama server)
+    - **Hugging Face** — `huggingface`
+    - **Triton** — `triton`
+    - **Cloudflare Workers AI** — `workers-ai`
+    - **openai-base** — any OpenAI-compatible endpoint
+    - **anthropic-base** — any Anthropic-compatible endpoint
+  </Tab>
+  <Tab title="Specialized">
+    Providers focused on specific modalities or use cases.
+
+    **Embeddings only**
+    - **Voyage AI** — `voyage`
+    - **Nomic** — `nomic`
+    - **Jina** — `jina`
+    - **Qdrant** — `qdrant`
+    - **Milvus** — `milvus`
+
+    **Image generation**
+    - **Stability AI** — `stability-ai`
+    - **Segmind** — `segmind`
+    - **Recraft AI** — `recraft-ai`
+    - **Meshy** — `meshy` (3D generation)
+    - **Tripo3D** — `tripo3d` (3D generation)
+  </Tab>
+</Tabs>

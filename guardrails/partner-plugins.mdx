@@ -1,0 +1,586 @@
+---
+title: "Partner Guardrail Plugins"
+description: "Integrate third-party AI security and evaluation providers — Aporia, Pangea, Patronus, Pillar, and more — as guardrails in your AI Gateway."
+---
+
+Partner plugins connect the AI Gateway to external security and evaluation services. Each plugin is enabled in `conf.json` alongside your provider credentials, then referenced in configs using the `<plugin-id>.<functionId>` format.
+
+## Enabling a partner plugin
+
+1. Add the plugin ID to `plugins_enabled` in `conf.json`.
+2. Add your credentials under the matching key in `credentials`.
+3. Run `npm run build-plugins` to recompile.
+4. Reference the function in your config.
+
+```json conf.json
+{
+  "plugins_enabled": ["default", "aporia", "pangea"],
+  "credentials": {
+    "aporia": {
+      "apiKey": "aporia-api-key"
+    },
+    "pangea": {
+      "apiKey": "pangea-token",
+      "domain": "aws.us.pangea.cloud"
+    }
+  }
+}
+```
+
+---
+
+## Security & content moderation
+
+<CardGroup cols={2}>
+
+<Card title="Aporia" icon="shield">
+**Plugin ID:** `aporia`
+
+Mitigates LLM hallucinations, inappropriate responses, prompt injection attacks, and other unintended behaviors in real-time by validating requests and responses against your Aporia project policies.
+
+**Credentials:** `apiKey` — find it in the Aporia dashboard.
+
+**Functions:**
+- `aporia.validateProject` — checks all policies in a given Aporia project (`beforeRequestHook`, `afterRequestHook`)
+
+```json
+{
+  "input_guardrails": [{
+    "aporia.validateProject": {
+      "projectID": "your-aporia-project-id"
+    },
+    "deny": true
+  }]
+}
+```
+</Card>
+
+<Card title="Pangea" icon="lock">
+**Plugin ID:** `pangea`
+
+Pangea AI Guard scans LLM inputs and outputs for malicious content, prompt manipulation, and sensitive data. Supports recipe-based configuration via the Pangea User Console.
+
+**Credentials:** `apiKey` (AI Guard token), `domain` (e.g. `aws.us.pangea.cloud`).
+
+**Functions:**
+- `pangea.textGuard` — AI Guard scan with recipe support and optional redaction (`beforeRequestHook`, `afterRequestHook`)
+- `pangea.pii` — PII Guard with optional redaction (`beforeRequestHook`, `afterRequestHook`)
+
+```json
+{
+  "input_guardrails": [{
+    "pangea.textGuard": {
+      "recipe": "my-recipe-key",
+      "debug": false
+    },
+    "deny": true
+  }]
+}
+```
+</Card>
+
+<Card title="Pillar" icon="database">
+**Plugin ID:** `pillar`
+
+Pillar Security scans prompts and responses for prompt injection, PII, secrets, toxic language, and invisible characters.
+
+**Credentials:** `apiKey` — find it in the Pillar dashboard.
+
+**Functions:**
+- `pillar.scanPrompt` — scans user prompts (`beforeRequestHook`)
+- `pillar.scanResponse` — scans model responses (`afterRequestHook`)
+
+```json
+{
+  "input_guardrails": [{
+    "pillar.scanPrompt": {
+      "scanners": ["prompt_injection", "pii", "secrets", "toxic_language"]
+    },
+    "deny": true
+  }]
+}
+```
+</Card>
+
+<Card title="Walled AI" icon="ban">
+**Plugin ID:** `walledai`
+
+Ensures the safety and compliance of LLM inputs and outputs with configurable PII, safety, and compliance checks.
+
+**Credentials:** `apiKey` — find it in the [Walled AI dashboard](https://dev.walled.ai/).
+
+**Functions:**
+- `walledai.walledprotect` — safety and compliance check (`beforeRequestHook`, `afterRequestHook`)
+
+```json
+{
+  "input_guardrails": [{
+    "walledai.walledprotect": {
+      "generic_safety_check": true,
+      "pii_list": ["Email Id", "Contact No", "Financial Data"]
+    },
+    "deny": true
+  }]
+}
+```
+</Card>
+
+<Card title="Prompt Security" icon="key">
+**Plugin ID:** `promptsecurity`
+
+Protects user prompts before they reach the LLM and sanitizes model responses before they reach the user.
+
+**Credentials:** `apiDomain` (API domain), `apiKey`.
+
+**Functions:**
+- `promptsecurity.protectPrompt` — guards the user prompt (`beforeRequestHook`)
+- `promptsecurity.protectResponse` — guards the LLM response (`afterRequestHook`)
+
+```json
+{
+  "input_guardrails": [{
+    "promptsecurity.protectPrompt": {},
+    "deny": true
+  }],
+  "output_guardrails": [{
+    "promptsecurity.protectResponse": {},
+    "deny": true
+  }]
+}
+```
+</Card>
+
+<Card title="Acuvity" icon="eye">
+**Plugin ID:** `acuvity`
+
+Comprehensive content safety and security checks with configurable thresholds for prompt injection, toxicity, jailbreak, malicious URLs, bias, harmful content, PII, and secrets detection.
+
+**Credentials:** `apiKey` — find it in the Acuvity dashboard.
+
+**Functions:**
+- `acuvity.Acuvity` — multi-category scan with per-category thresholds (`beforeRequestHook`, `afterRequestHook`)
+
+```json
+{
+  "input_guardrails": [{
+    "acuvity.Acuvity": {
+      "prompt_injection": true,
+      "prompt_injection_threshold": 0.7,
+      "pii": true,
+      "pii_redact": false,
+      "toxic": true
+    },
+    "deny": true
+  }]
+}
+```
+</Card>
+
+<Card title="Lasso Security" icon="search">
+**Plugin ID:** `lasso`
+
+GenAI security platform that autonomously monitors interactions and detects risks in real-time using AI-powered Deputies for jailbreaks, custom policy violations, hate speech, illegal content, and more.
+
+**Credentials:** `apiKey` — find it in the [Lasso dashboard](https://app.lasso.security/organization-settings).
+
+**Functions:**
+- `lasso.classify` — classifies prompts for security risks (`beforeRequestHook`)
+
+```json
+{
+  "input_guardrails": [{
+    "lasso.classify": {
+      "messages": []
+    },
+    "deny": true
+  }]
+}
+```
+</Card>
+
+<Card title="Qualifire" icon="check-circle">
+**Plugin ID:** `qualifire`
+
+Content moderation, hallucination detection, PII checks, prompt injection detection, grounding checks, and tool use quality evaluation.
+
+**Credentials:** `apiKey` — create one in [Qualifire settings](https://app.qualifire.ai/settings/api-keys/).
+
+**Functions:**
+- `qualifire.contentModeration` — dangerous/sexual/harassment content (`beforeRequestHook`, `afterRequestHook`)
+- `qualifire.hallucinations` — hallucination detection (`afterRequestHook`)
+- `qualifire.pii` — PII detection (`beforeRequestHook`, `afterRequestHook`)
+- `qualifire.promptInjections` — injection detection (`beforeRequestHook`)
+- `qualifire.grounding` — context grounding (`afterRequestHook`)
+- `qualifire.toolUseQuality` — tool call quality (`afterRequestHook`)
+- `qualifire.policy` — custom policy violations (`beforeRequestHook`, `afterRequestHook`)
+
+```json
+{
+  "output_guardrails": [{
+    "qualifire.hallucinations": {
+      "mode": "balanced"
+    },
+    "deny": true
+  }]
+}
+```
+</Card>
+
+</CardGroup>
+
+---
+
+## Cloud provider guardrails
+
+<CardGroup cols={2}>
+
+<Card title="Azure AI Content Safety" icon="cloud">
+**Plugin ID:** `azure`
+
+Azure AI Content Safety and PII Detection with support for API key, Entra ID, and Managed Identity authentication.
+
+**Credentials:** Per-function credentials block with `azureAuthMode`, `resourceName`, and either `apiKey` or Entra/Managed Identity fields.
+
+**Functions:**
+- `azure.contentSafety` — hate, self-harm, sexual, violence detection (`beforeRequestHook`, `afterRequestHook`)
+- `azure.pii` — PII detection with optional redaction (`beforeRequestHook`, `afterRequestHook`)
+- `azure.shieldPrompt` — jailbreak and prompt injection detection via Prompt Shields (`beforeRequestHook`)
+- `azure.protectedMaterial` — detects copyrighted content in LLM outputs (`afterRequestHook`)
+
+```json
+{
+  "input_guardrails": [{
+    "azure.shieldPrompt": {},
+    "deny": true
+  }]
+}
+```
+
+```json conf.json credentials block
+{
+  "azure": {
+    "contentSafety": {
+      "azureAuthMode": "apiKey",
+      "resourceName": "my-resource",
+      "apiKey": "azure-api-key"
+    },
+    "pii": {
+      "azureAuthMode": "apiKey",
+      "resourceName": "my-resource",
+      "apiKey": "azure-api-key"
+    }
+  }
+}
+```
+</Card>
+
+<Card title="AWS Bedrock Guardrails" icon="server">
+**Plugin ID:** `bedrock`
+
+Applies AWS Bedrock Guardrails to filter harmful content, prompt injections, and PII, using guardrail configurations managed in your AWS account.
+
+**Credentials:** `accessKeyId`, `accessKeySecret`, `region`, optionally `awsSessionToken`.
+
+**Functions:**
+- `bedrock.guard` — applies a named Bedrock guardrail (`beforeRequestHook`, `afterRequestHook`)
+
+```json
+{
+  "input_guardrails": [{
+    "bedrock.guard": {
+      "guardrailId": "abc123",
+      "guardrailVersion": "1",
+      "redact": false
+    },
+    "deny": true
+  }]
+}
+```
+</Card>
+
+</CardGroup>
+
+---
+
+## LLM-powered evaluation
+
+<CardGroup cols={2}>
+
+<Card title="Patronus AI" icon="flask">
+**Plugin ID:** `patronus`
+
+Leading LLM automated testing and evaluation platform. Checks for PHI, PII, toxicity, bias, hallucination, and behavioral quality (conciseness, helpfulness, politeness).
+
+**Credentials:** `apiKey` — find it in the [Patronus dashboard](https://app.patronus.ai/account/api-keys).
+
+**Functions:**
+- `patronus.phi` — Protected Health Information detection with optional redaction (`afterRequestHook`)
+- `patronus.pii` — PII detection with optional redaction (`afterRequestHook`)
+- `patronus.isConcise` — conciseness check (`afterRequestHook`)
+- `patronus.isHelpful` — helpfulness check (`afterRequestHook`)
+- `patronus.isPolite` — politeness check (`afterRequestHook`)
+- `patronus.noApologies` — no-apology check (`afterRequestHook`)
+- `patronus.noGenderBias` — gender bias check (`afterRequestHook`)
+- `patronus.noRacialBias` — racial bias check (`afterRequestHook`)
+- `patronus.retrievalAnswerRelevance` — answer relevance check (`afterRequestHook`)
+- `patronus.retrievalHallucination` — hallucination check (`afterRequestHook`)
+- `patronus.toxicity` — toxicity/hate speech check (`afterRequestHook`)
+- `patronus.custom` — custom evaluator using a named profile (`afterRequestHook`)
+
+```json
+{
+  "output_guardrails": [
+    {
+      "patronus.toxicity": {},
+      "deny": true
+    },
+    {
+      "patronus.pii": {"redact": true},
+      "deny": false
+    }
+  ]
+}
+```
+</Card>
+
+<Card title="Mistral Moderation" icon="robot">
+**Plugin ID:** `mistral`
+
+Mistral's content moderation classifier covering sexual content, hate/discrimination, violence, dangerous/criminal content, self-harm, health, financial, legal, and PII categories.
+
+**Credentials:** `apiKey` — find it in Mistral la-plateforme.
+
+**Functions:**
+- `mistral.moderateContent` — multi-category moderation check (`beforeRequestHook`, `afterRequestHook`)
+
+```json
+{
+  "input_guardrails": [{
+    "mistral.moderateContent": {
+      "categories": ["sexual", "hate_and_discrimination", "selfharm", "pii"]
+    },
+    "deny": true
+  }]
+}
+```
+</Card>
+
+<Card title="Promptfoo" icon="vial">
+**Plugin ID:** `promptfoo`
+
+Promptfoo's Red Team and Guardrails API detects security risks, PII, and harmful content. No API credentials required.
+
+**Credentials:** None required.
+
+**Functions:**
+- `promptfoo.guard` — injection and jailbreak detection (`beforeRequestHook`)
+- `promptfoo.pii` — PII detection with optional redaction (`beforeRequestHook`, `afterRequestHook`)
+- `promptfoo.harm` — harmful content detection (`beforeRequestHook`, `afterRequestHook`)
+
+```json
+{
+  "input_guardrails": [
+    {
+      "promptfoo.guard": {},
+      "deny": true
+    }
+  ],
+  "output_guardrails": [
+    {
+      "promptfoo.harm": {},
+      "deny": true
+    }
+  ]
+}
+```
+</Card>
+
+<Card title="Portkey Advanced" icon="gateway">
+**Plugin ID:** `portkey`
+
+Advanced guardrails from Portkey including content moderation (via OpenAI moderation API), language detection, PII detection with redaction, and gibberish detection. Supports 50+ languages.
+
+**Credentials:** `apiKey`, optionally `baseURL` for a custom deployment.
+
+**Functions:**
+- `portkey.moderateContent` — multi-category moderation (`beforeRequestHook`)
+- `portkey.language` — language detection for 50+ languages (`beforeRequestHook`)
+- `portkey.pii` — PII detection with optional redaction for 7 categories (`beforeRequestHook`, `afterRequestHook`)
+- `portkey.gibberish` — gibberish detection (`beforeRequestHook`, `afterRequestHook`)
+
+```json
+{
+  "input_guardrails": [
+    {
+      "portkey.moderateContent": {
+        "categories": ["hate/threatening", "self-harm/intent", "sexual/minors"]
+      },
+      "deny": true
+    },
+    {
+      "portkey.pii": {
+        "categories": ["EMAIL_ADDRESS", "PHONE_NUMBER", "SSN"],
+        "redact": true
+      },
+      "deny": false
+    }
+  ]
+}
+```
+</Card>
+
+</CardGroup>
+
+---
+
+## Enterprise security
+
+<CardGroup cols={2}>
+
+<Card title="CrowdStrike AIDR" icon="shield-halved">
+**Plugin ID:** `crowdstrike-aidr`
+
+CrowdStrike AI Detection and Response scans LLM inputs and outputs, blocking or sanitizing content according to rules configured in your Falcon console.
+
+**Credentials:** `apiKey` (AIDR token from the Falcon console), `baseUrl`.
+
+**Functions:**
+- `crowdstrike-aidr.guardChatCompletions` — guards chat completions (`beforeRequestHook`, `afterRequestHook`)
+
+```json
+{
+  "input_guardrails": [{
+    "crowdstrike-aidr.guardChatCompletions": {},
+    "deny": true
+  }]
+}
+```
+</Card>
+
+<Card title="Palo Alto Networks Prisma AIRS" icon="network-wired">
+**Plugin ID:** `panwPrismaAirs`
+
+Palo Alto Networks Prisma AI Runtime Security provides real-time scanning for prompt injections, malicious content, PII leakage, and policy violations using security profiles from Strata Cloud Manager.
+
+**Credentials:** `AIRS_API_KEY` — find it in Strata Cloud Manager.
+
+**Functions:**
+- `panwPrismaAirs.intercept` — scans prompts and responses against a named AIRS profile (`beforeRequestHook`, `afterRequestHook`)
+
+```json
+{
+  "input_guardrails": [{
+    "panwPrismaAirs.intercept": {
+      "profile_name": "my-security-profile",
+      "ai_model": "gpt-4o",
+      "app_name": "chatbot"
+    },
+    "deny": true
+  }]
+}
+```
+</Card>
+
+<Card title="F5 Guardrails" icon="lock">
+**Plugin ID:** `f5-guardrails`
+
+F5 Guardrails powered by Calypso AI provides advanced content moderation and PII detection with optional redaction.
+
+**Credentials:** `apiKey`, optionally `calypsoUrl` (defaults to `https://us1.calypsoai.app`).
+
+**Functions:**
+- `f5-guardrails.scan` — content moderation and PII detection (`beforeRequestHook`, `afterRequestHook`)
+
+```json
+{
+  "input_guardrails": [{
+    "f5-guardrails.scan": {
+      "projectId": "my-project-id",
+      "redact": true
+    },
+    "deny": true
+  }]
+}
+```
+</Card>
+
+<Card title="Javelin" icon="shield-check">
+**Plugin ID:** `javelin`
+
+Javelin's AI security platform applies all guardrails configured in your application policy — trust and safety, prompt injection detection, language detection, and more — in a single call.
+
+**Credentials:** `apiKey`, `application` (application name for policy-specific guardrails), optionally `domain`.
+
+**Functions:**
+- `javelin.guardrails` — applies all enabled guardrails in the named application policy (`beforeRequestHook`, `afterRequestHook`)
+
+```json
+{
+  "input_guardrails": [{
+    "javelin.guardrails": {},
+    "deny": true
+  }]
+}
+```
+</Card>
+
+<Card title="Sydelabs SydeGuard" icon="robot">
+**Plugin ID:** `sydelabs`
+
+SydeGuard assesses the risk of inputs for prompt injections, toxicity, and evasion attempts, with configurable per-category thresholds.
+
+**Credentials:** `apiKey` — find it in the Sydelabs dashboard.
+
+**Functions:**
+- `sydelabs.sydeguard` — risk assessment with configurable thresholds (`beforeRequestHook`, `afterRequestHook`)
+
+```json
+{
+  "input_guardrails": [{
+    "sydelabs.sydeguard": {
+      "prompt_injection_threshold": 0.7,
+      "toxicity_threshold": 0.6,
+      "evasion_threshold": 0.5
+    },
+    "deny": true
+  }]
+}
+```
+</Card>
+
+</CardGroup>
+
+---
+
+## Web-augmented transformers
+
+<CardGroup cols={2}>
+
+<Card title="Exa Online Search" icon="magnifying-glass">
+**Plugin ID:** `exa`
+
+Enhances prompts with real-time web search results from Exa's search API before the request reaches the LLM. This is a **transformer**, not a guardrail — it modifies the request rather than blocking it.
+
+**Credentials:** `apiKey` — your Exa.ai API key.
+
+**Functions:**
+- `exa.online` — injects web search context into prompts (`beforeRequestHook`)
+
+```json
+{
+  "input_guardrails": [{
+    "exa.online": {
+      "numResults": 5,
+      "includeDomains": ["reuters.com", "bbc.com"]
+    },
+    "deny": false
+  }]
+}
+```
+</Card>
+
+</CardGroup>
+
+<Warning>
+Partner plugins communicate with external APIs. Ensure your data residency and privacy requirements permit sending request/response content to the relevant third-party service before enabling any partner plugin.
+</Warning>

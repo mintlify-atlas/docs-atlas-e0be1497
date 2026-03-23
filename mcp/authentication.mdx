@@ -1,0 +1,167 @@
+---
+title: "MCP Gateway authentication"
+description: "Authenticate requests to the MCP Gateway using API keys or JWT tokens, and forward verified user identity to your MCP servers."
+---
+
+## How authentication works
+
+The MCP Gateway acts as the single authentication boundary for all MCP traffic. Clients authenticate to the gateway once — the gateway then forwards verified requests to your MCP servers without requiring each server to implement its own auth.
+
+```
+MCP Client
+  → presents credentials to gateway
+  → gateway validates credentials
+  → gateway forwards request + verified identity to MCP server
+  → MCP server trusts the forwarded identity
+```
+
+This means your MCP servers can focus on tool logic rather than auth infrastructure.
+
+## Authentication methods
+
+The gateway supports two authentication methods for incoming requests.
+
+### API key authentication
+
+Pass a static API key in the `Authorization` header:
+
+```http
+Authorization: Bearer your-gateway-api-key
+```
+
+Configure allowed API keys in `conf.json`:
+
+```json conf.json
+{
+  "mcp": {
+    "auth": {
+      "type": "api_key",
+      "keys": [
+        {
+          "key": "gw-key-alice-team",
+          "user": "alice@example.com",
+          "team": "engineering",
+          "roles": ["developer"]
+        },
+        {
+          "key": "gw-key-ops-team",
+          "user": "service-account@example.com",
+          "team": "ops",
+          "roles": ["operator"]
+        }
+      ]
+    }
+  }
+}
+```
+
+Each key entry maps a credential to a user identity. This identity is forwarded to MCP servers with every request (see [Identity forwarding](#identity-forwarding) below).
+
+### JWT authentication
+
+For user-facing applications, configure the gateway to validate JWTs issued by your identity provider:
+
+```json conf.json
+{
+  "mcp": {
+    "auth": {
+      "type": "jwt",
+      "jwks_url": "https://your-idp.example.com/.well-known/jwks.json",
+      "audience": "portkey-mcp-gateway",
+      "issuer": "https://your-idp.example.com"
+    }
+  }
+}
+```
+
+The gateway validates the token signature and claims, then extracts user identity from the JWT payload.
+
+<Tip>
+  JWT claims `email`, `team`, and `roles` are extracted automatically if present. You can map custom claim names using the `claims_mapping` field.
+</Tip>
+
+```json conf.json
+{
+  "mcp": {
+    "auth": {
+      "type": "jwt",
+      "jwks_url": "https://your-idp.example.com/.well-known/jwks.json",
+      "claims_mapping": {
+        "user": "sub",
+        "team": "custom:department",
+        "roles": "custom:roles"
+      }
+    }
+  }
+}
+```
+
+## Identity forwarding
+
+After authenticating a request, the gateway forwards the verified user identity to the MCP server as request headers. This lets MCP servers apply their own authorization logic without needing to authenticate the user themselves.
+
+The following headers are forwarded automatically:
+
+| Header | Value | Example |
+|---|---|---|
+| `x-portkey-user` | Authenticated user identifier | `alice@example.com` |
+| `x-portkey-team` | Team or organization the user belongs to | `engineering` |
+| `x-portkey-roles` | Comma-separated list of roles | `developer,admin` |
+| `x-portkey-request-id` | Unique ID for this request | `req_01j8...` |
+
+Example of what an MCP server receives:
+
+```http
+POST /tools/call HTTP/1.1
+Host: localhost:3001
+x-portkey-user: alice@example.com
+x-portkey-team: engineering
+x-portkey-roles: developer
+x-portkey-request-id: req_01j8abc123
+Content-Type: application/json
+
+{
+  "tool": "read_file",
+  "params": { "path": "/project/README.md" }
+}
+```
+
+<Note>
+  MCP servers should validate that requests come from the gateway (e.g., by checking a shared secret or network policy) before trusting forwarded identity headers.
+</Note>
+
+## Securing the gateway-to-server connection
+
+If your MCP servers are on the same private network as the gateway, network isolation may be sufficient. For additional security, configure a shared secret between the gateway and each MCP server:
+
+```json conf.json
+{
+  "mcp": {
+    "servers": {
+      "filesystem": {
+        "url": "http://localhost:3001",
+        "auth": {
+          "type": "header",
+          "header": "x-internal-secret",
+          "value": "your-internal-shared-secret"
+        }
+      }
+    }
+  }
+}
+```
+
+The gateway will include this header on every request it forwards to the server.
+
+## Revoking access
+
+To revoke a user or service account's access:
+
+1. Remove or disable their API key from the `keys` array in `conf.json`
+2. Reload the gateway configuration
+
+For JWT-based auth, access is revoked when the JWT expires, or you can add the token to a denylist using the `denylist` configuration option.
+
+<Warning>
+  Removing a key from `conf.json` and restarting the gateway takes effect immediately for all subsequent requests. In-flight requests using that key will not be interrupted.
+</Warning>

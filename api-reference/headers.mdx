@@ -1,0 +1,190 @@
+---
+title: "Request headers"
+description: "All Portkey-specific request headers recognized by the AI Gateway."
+---
+
+The gateway reads `x-portkey-*` headers to control routing, authentication, and observability. All other headers are forwarded to the target provider unchanged.
+
+## Required headers
+
+Every request must include at least one of the following two headers:
+
+<ParamField header="x-portkey-provider" type="string">
+  The target LLM provider to route the request to. Must be a recognized provider slug.
+
+  Examples: `openai`, `anthropic`, `bedrock`, `vertex-ai`, `azure-openai`, `groq`, `mistral-ai`, `cohere`, `together-ai`, `deepseek`, `ollama`
+
+  Required unless `x-portkey-config` is provided with a `provider` or `targets` field.
+</ParamField>
+
+<ParamField header="x-portkey-config" type="string (JSON)">
+  A JSON object that configures routing, reliability, and guardrail behavior. Accepts either a JSON string or a base64-encoded JSON string.
+
+  When this header is used, the config must contain either a `provider` field or a `targets` array. If `x-portkey-provider` is also present, it takes precedence for provider selection.
+
+  ```json
+  {
+    "provider": "openai",
+    "api_key": "sk-...",
+    "retry": { "attempts": 3 },
+    "cache": { "mode": "simple" }
+  }
+  ```
+
+  For advanced routing (fallback, load balancing):
+
+  ```json
+  {
+    "strategy": { "mode": "fallback" },
+    "targets": [
+      { "provider": "openai", "api_key": "sk-..." },
+      { "provider": "anthropic", "api_key": "sk-ant-..." }
+    ]
+  }
+  ```
+</ParamField>
+
+## Authentication headers
+
+<ParamField header="Authorization" type="string">
+  The provider API key, formatted as a Bearer token. Forwarded to the target provider.
+
+  Example: `Bearer sk-abc123`
+</ParamField>
+
+<ParamField header="x-portkey-api-key" type="string">
+  Your Portkey API key, used with the Portkey hosted service. When present, Portkey handles provider credential resolution via virtual keys.
+
+  Example: `pk-abc123`
+</ParamField>
+
+<ParamField header="x-portkey-virtual-key" type="string">
+  A virtual key identifier stored in Portkey's key vault. The gateway resolves it to the actual provider API key at request time. Available on the hosted service.
+
+  Example: `openai-prod-key`
+</ParamField>
+
+## Observability headers
+
+<ParamField header="x-portkey-trace-id" type="string">
+  A custom trace ID to attach to the request for log correlation. If not provided, the gateway generates one automatically.
+
+  Example: `req_abc123xyz`
+</ParamField>
+
+<ParamField header="x-portkey-metadata" type="string (JSON)">
+  A JSON object of key-value pairs attached to the request for use in routing conditions, logging, and analytics.
+
+  Keys and values must be strings.
+
+  ```json
+  {"environment": "production", "user_id": "u_123", "team": "search"}
+  ```
+</ParamField>
+
+## Routing and behavior headers
+
+<ParamField header="x-portkey-custom-host" type="string">
+  Override the provider's default API base URL. Useful for self-hosted models or custom inference endpoints.
+
+  Must be a valid `http://` or `https://` URL. Private IP ranges, cloud metadata endpoints, and non-HTTP schemes are blocked.
+
+  Example: `https://my-llm-endpoint.example.com`
+</ParamField>
+
+<ParamField header="x-portkey-forward-headers" type="string (JSON array)">
+  A JSON array of header names that should be forwarded as-is to the provider. By default, `x-portkey-*` headers are stripped before forwarding.
+
+  Example: `["x-my-custom-header", "x-request-id"]`
+</ParamField>
+
+<ParamField header="x-portkey-request-timeout" type="number">
+  Request timeout in milliseconds. If the provider does not respond within this duration, the request is terminated.
+
+  Example: `30000`
+</ParamField>
+
+<ParamField header="x-portkey-cache" type="string">
+  Cache mode for this request. Supported values: `simple`, `semantic`.
+
+  - `simple` — exact-match cache based on request body hash.
+  - `semantic` — similarity-based cache (hosted service only).
+
+  Example: `simple`
+</ParamField>
+
+<ParamField header="x-portkey-cache-force-refresh" type="string">
+  When present (any value), bypasses the cache and forces a fresh request to the provider. The response is written back to the cache.
+</ParamField>
+
+<ParamField header="x-portkey-strict-open-ai-compliance" type="boolean">
+  When set to `true`, the gateway strips non-OpenAI-standard fields from the response before returning it to the client.
+
+  Example: `true`
+</ParamField>
+
+<ParamField header="x-portkey-mode" type="string">
+  Explicitly sets the routing mode. In most cases this is controlled through `x-portkey-config`. Accepted values mirror the config `strategy.mode` options: `single`, `fallback`, `loadbalance`, `conditional`.
+</ParamField>
+
+## Response headers
+
+The gateway adds these headers to every response:
+
+| Header | Description |
+|--------|-------------|
+| `x-portkey-trace-id` | The trace ID for the request (echoed back or generated). |
+| `x-portkey-cache-status` | Cache result: `HIT`, `MISS`, `SEMANTIC HIT`, `REFRESH`, or `DISABLED`. |
+| `x-portkey-retry-attempt-count` | Number of retry attempts made before a successful response. |
+| `x-portkey-last-used-option-index` | Index of the target option selected during load balancing or fallback. |
+| `x-portkey-last-used-option-params` | Parameters of the target option that was ultimately used. |
+
+## Retry counter
+
+<ParamField header="x-portkey-retry-count" type="number">
+  Set by the gateway internally on retried requests to track the current retry attempt number. This header is not intended to be set by clients.
+</ParamField>
+
+## Provider-specific headers
+
+Some providers require additional credentials or configuration passed via dedicated `x-portkey-*` headers. These are used when the corresponding config fields are not available in `x-portkey-config`.
+
+### AWS Bedrock
+
+| Header | Description |
+|--------|-------------|
+| `x-portkey-aws-access-key-id` | AWS access key ID. |
+| `x-portkey-aws-secret-access-key` | AWS secret access key. |
+| `x-portkey-aws-session-token` | AWS session token (for temporary credentials). |
+| `x-portkey-aws-region` | AWS region (e.g., `us-east-1`). |
+| `x-portkey-aws-role-arn` | IAM role ARN for assumed-role authentication. |
+| `x-portkey-aws-auth-type` | Authentication type (e.g., `assumedRole`). |
+
+### Azure OpenAI
+
+| Header | Description |
+|--------|-------------|
+| `x-portkey-azure-resource-name` | Azure resource name. |
+| `x-portkey-azure-deployment-id` | Azure deployment ID. |
+| `x-portkey-azure-api-version` | Azure API version. |
+| `x-portkey-azure-ad-token` | Azure AD bearer token. |
+| `x-portkey-azure-auth-mode` | Azure authentication mode. |
+
+### Google Vertex AI
+
+| Header | Description |
+|--------|-------------|
+| `x-portkey-vertex-project-id` | Google Cloud project ID. |
+| `x-portkey-vertex-region` | Vertex AI region (e.g., `us-central1`). |
+| `x-portkey-vertex-storage-bucket-name` | GCS bucket name for batch operations. |
+
+### Anthropic
+
+| Header | Description |
+|--------|-------------|
+| `x-portkey-anthropic-version` | Anthropic API version string. |
+| `x-portkey-anthropic-beta` | Anthropic beta feature flag. |
+
+<Note>
+  Provider-specific headers that are not listed here can be passed using `x-portkey-forward-headers` to have them forwarded directly to the provider.
+</Note>

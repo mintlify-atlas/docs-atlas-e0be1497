@@ -1,0 +1,399 @@
+---
+title: "Plugin manifest"
+description: "Complete reference for the manifest.json schema used to declare a Portkey AI Gateway plugin."
+---
+
+Every plugin directory must contain a `manifest.json` file. The manifest declares the plugin's identity, the credentials it needs, and the functions it exposes. The build system reads the manifest to auto-generate the plugin registry, and the Portkey UI reads it to render configuration forms.
+
+## Complete example
+
+The following is the manifest for the built-in `default` plugin (`plugins/default/manifest.json`), trimmed to representative functions:
+
+```json plugins/default/manifest.json
+{
+  "id": "default",
+  "name": "Default",
+  "description": "The default set of guardrail functions available in the AI Gateway.",
+  "credentials": [],
+  "functions": [
+    {
+      "name": "Regex Match",
+      "id": "regexMatch",
+      "type": "guardrail",
+      "supportedHooks": ["beforeRequestHook", "afterRequestHook"],
+      "description": [
+        {
+          "type": "subHeading",
+          "text": "Check if the request or response text matches a regex pattern."
+        }
+      ],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "rule": {
+            "type": "string",
+            "label": "Regex Rule",
+            "description": [
+              {
+                "type": "subHeading",
+                "text": "Enter the regex pattern"
+              }
+            ]
+          },
+          "not": {
+            "type": "boolean",
+            "label": "Invert Match",
+            "description": [
+              {
+                "type": "subHeading",
+                "text": "If true, the verdict will be inverted"
+              }
+            ],
+            "default": false
+          }
+        },
+        "required": ["rule"]
+      }
+    },
+    {
+      "name": "Contains",
+      "id": "contains",
+      "type": "guardrail",
+      "supportedHooks": ["afterRequestHook"],
+      "description": [
+        {
+          "type": "subHeading",
+          "text": "Checks if the content contains any, all or none of the words or phrases"
+        }
+      ],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "words": {
+            "type": "array",
+            "label": "Words or Phrases",
+            "description": [
+              {
+                "type": "subHeading",
+                "text": "Enter the words or phrases to check for."
+              }
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "operator": {
+            "type": "string",
+            "label": "Operator",
+            "description": [
+              {
+                "type": "subHeading",
+                "text": "Select the operator to use."
+              }
+            ],
+            "enum": ["any", "all", "none"],
+            "default": "any"
+          }
+        },
+        "required": ["words", "operator"]
+      }
+    },
+    {
+      "name": "Add Prefix",
+      "id": "addPrefix",
+      "type": "transformer",
+      "supportedHooks": ["beforeRequestHook"],
+      "description": [
+        {
+          "type": "subHeading",
+          "text": "Adds a configurable prefix to the user's prompt or messages before sending to the AI model"
+        }
+      ],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "prefix": {
+            "type": "string",
+            "label": "Prefix Text",
+            "description": [
+              {
+                "type": "subHeading",
+                "text": "The text to prepend to the user's prompt or message"
+              }
+            ],
+            "default": "Please respond helpfully and accurately to the following: "
+          }
+        },
+        "required": ["prefix"]
+      }
+    }
+  ]
+}
+```
+
+## Top-level fields
+
+<ParamField body="id" type="string" required>
+  Unique identifier for the plugin. Must match the directory name under `plugins/` and contain only lowercase letters, digits, and hyphens. This ID is used as the key in the generated plugin registry and in `conf.json`.
+
+  ```json
+  "id": "my-guardrail"
+  ```
+</ParamField>
+
+<ParamField body="name" type="string" required>
+  Human-readable display name shown in the Portkey UI.
+
+  ```json
+  "name": "My Guardrail"
+  ```
+</ParamField>
+
+<ParamField body="description" type="string" required>
+  Short description of the plugin's purpose. Displayed in the UI alongside the name.
+
+  ```json
+  "description": "Blocks requests containing prohibited phrases."
+  ```
+</ParamField>
+
+<ParamField body="credentials" type="object | array" required>
+  Declares credentials the plugin requires (API keys, secrets, etc.). Set to an empty array `[]` if the plugin needs no credentials.
+
+  When credentials are required, define them as a JSON Schema object:
+
+  ```json
+  "credentials": {
+    "type": "object",
+    "properties": {
+      "apiKey": {
+        "type": "string",
+        "label": "API Key",
+        "description": "Your service API key.",
+        "encrypted": true
+      }
+    },
+    "required": ["apiKey"]
+  }
+  ```
+
+  Credential values are injected into `parameters.credentials` at runtime and are sourced from the `credentials` object in `conf.json`.
+</ParamField>
+
+<ParamField body="functions" type="array" required>
+  Array of function definitions. Each entry declares one callable function exposed by this plugin. See [Function fields](#function-fields) below.
+</ParamField>
+
+## Function fields
+
+Each object in the `functions` array must include the following fields:
+
+<ParamField body="name" type="string" required>
+  Human-readable name for the function, shown in the UI.
+
+  ```json
+  "name": "Block Phrases"
+  ```
+</ParamField>
+
+<ParamField body="id" type="string" required>
+  Identifier for the function. Must match the TypeScript file name in the plugin directory (without the `.ts` extension). Used as the key in the plugin registry.
+
+  ```json
+  "id": "blockPhrases"
+  ```
+</ParamField>
+
+<ParamField body="type" type="string" required>
+  Function category. Accepted values:
+
+  | Value | Description |
+  |---|---|
+  | `guardrail` | Evaluates content and returns a boolean verdict. |
+  | `transformer` | Modifies the request or response payload. |
+</ParamField>
+
+<ParamField body="supportedHooks" type="string[]" required>
+  Array of hook names this function can run on. Accepted values:
+
+  - `"beforeRequestHook"` — runs before the request is sent to the LLM.
+  - `"afterRequestHook"` — runs after the LLM response is received.
+
+  A function can support one or both hooks.
+
+  ```json
+  "supportedHooks": ["beforeRequestHook", "afterRequestHook"]
+  ```
+</ParamField>
+
+<ParamField body="description" type="array" required>
+  Rich text description rendered in the UI. An array of content block objects. Each block has a `type` and `text`:
+
+  ```json
+  "description": [
+    {
+      "type": "subHeading",
+      "text": "Fails if the content contains any prohibited phrase."
+    }
+  ]
+  ```
+
+  Supported block types: `"subHeading"`, `"text"`.
+</ParamField>
+
+<ParamField body="parameters" type="object" required>
+  JSON Schema object defining the parameters the function accepts. See [Parameter schema](#parameter-schema) below.
+</ParamField>
+
+## Parameter schema
+
+The `parameters` field uses a subset of JSON Schema to describe the inputs a function accepts. The UI uses this schema to auto-generate configuration forms.
+
+<ParamField body="parameters.type" type="string" required>
+  Always `"object"` for the top-level parameters definition.
+</ParamField>
+
+<ParamField body="parameters.properties" type="object" required>
+  A map of parameter names to their schema definitions. Each parameter definition supports the following fields:
+
+  <AccordionGroup>
+    <Accordion title="type">
+      JSON Schema type of the parameter. Accepted values: `"string"`, `"number"`, `"boolean"`, `"array"`, `"object"`, `"json"`.
+
+      Use `"json"` for parameters that accept an arbitrary JSON object (e.g. a webhook headers map).
+    </Accordion>
+    <Accordion title="label">
+      Short label displayed next to the input field in the UI.
+    </Accordion>
+    <Accordion title="description">
+      Rich text description array (same format as function-level `description`). Rendered as hint text below the input.
+    </Accordion>
+    <Accordion title="default">
+      Default value applied when the parameter is not explicitly set. Type must match `type`.
+    </Accordion>
+    <Accordion title="enum">
+      Array of allowed string values. When present, the UI renders a dropdown selector instead of a free-text input.
+
+      ```json
+      "enum": ["any", "all", "none"]
+      ```
+    </Accordion>
+    <Accordion title="items (for array type)">
+      Schema for individual array elements. Typically `{ "type": "string" }` or a string schema with `enum`.
+
+      ```json
+      "items": { "type": "string" }
+      ```
+    </Accordion>
+    <Accordion title="encrypted (for credentials only)">
+      Boolean. When `true` on a credential field, the value is stored encrypted and never returned in plain text from the API.
+    </Accordion>
+  </AccordionGroup>
+</ParamField>
+
+<ParamField body="parameters.required" type="string[]">
+  Array of parameter names that must be provided. The UI marks these fields as required.
+
+  ```json
+  "required": ["rule"]
+  ```
+
+  Set to `[]` or omit the field if no parameters are required.
+</ParamField>
+
+## Credential fields
+
+When a plugin needs API keys or other secrets, define them in the top-level `credentials` schema:
+
+```json
+{
+  "id": "my-service",
+  "name": "My Service",
+  "description": "Guardrails powered by My Service API.",
+  "credentials": {
+    "type": "object",
+    "properties": {
+      "apiKey": {
+        "type": "string",
+        "label": "API Key",
+        "description": "Your My Service API key.",
+        "encrypted": true
+      },
+      "endpoint": {
+        "type": "string",
+        "label": "Custom Endpoint",
+        "description": "Override the default API endpoint URL."
+      }
+    },
+    "required": ["apiKey"]
+  },
+  "functions": [...]
+}
+```
+
+At runtime, credential values are populated from `conf.json` and injected into the handler via `parameters.credentials`:
+
+```typescript
+export const handler: PluginHandler = async (context, parameters, eventType) => {
+  const apiKey = parameters.credentials?.apiKey;
+  // use apiKey to authenticate with an external service
+};
+```
+
+```json conf.json
+{
+  "plugins_enabled": ["default", "my-service"],
+  "credentials": {
+    "my-service": {
+      "apiKey": "sk-abc123"
+    }
+  }
+}
+```
+
+<Warning>
+Never hard-code credentials in your plugin source files. Always read them from `parameters.credentials` at runtime so that they can be managed through `conf.json` without modifying code.
+</Warning>
+
+## Minimal manifest template
+
+Use this as a starting point for a new plugin:
+
+```json manifest.json
+{
+  "id": "your-plugin-id",
+  "name": "Your Plugin Name",
+  "description": "Brief description of your plugin.",
+  "credentials": [],
+  "functions": [
+    {
+      "name": "Your Function Name",
+      "id": "yourFunctionId",
+      "type": "guardrail",
+      "supportedHooks": ["beforeRequestHook", "afterRequestHook"],
+      "description": [
+        {
+          "type": "subHeading",
+          "text": "What this function checks."
+        }
+      ],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "paramName": {
+            "type": "string",
+            "label": "Parameter Label",
+            "description": [
+              {
+                "type": "subHeading",
+                "text": "Description of this parameter."
+              }
+            ]
+          }
+        },
+        "required": ["paramName"]
+      }
+    }
+  ]
+}
+```

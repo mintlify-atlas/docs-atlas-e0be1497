@@ -1,0 +1,315 @@
+---
+title: "Fine-tuning"
+description: "Create and manage fine-tuning jobs to train custom models on your data."
+---
+
+The Fine-tuning API proxies fine-tuning job management to the configured provider. All endpoints follow the OpenAI fine-tuning API contract. The correct operation is determined automatically by the HTTP method and the presence of a `:jobId` path parameter.
+
+<Note>
+  Fine-tuning requires uploading a training file first. Use `POST /v1/files` with `purpose=fine-tune` to prepare your data.
+</Note>
+
+## Endpoint routing
+
+All fine-tuning requests are handled at `/v1/fine_tuning/jobs/:jobId?/:cancel?`. The gateway dispatches to the correct operation based on the method and path:
+
+| Method | Path | Operation |
+|--------|------|-----------|
+| `GET` | `/v1/fine_tuning/jobs` | List fine-tuning jobs |
+| `POST` | `/v1/fine_tuning/jobs` | Create a fine-tuning job |
+| `GET` | `/v1/fine_tuning/jobs/:id` | Retrieve a fine-tuning job |
+| `POST` | `/v1/fine_tuning/jobs/:id/cancel` | Cancel a fine-tuning job |
+
+---
+
+## List fine-tuning jobs
+
+`GET /v1/fine_tuning/jobs`
+
+Returns a list of fine-tuning jobs for the configured provider.
+
+### Request
+
+<ParamField header="x-portkey-provider" type="string" required>
+  The provider to route the request to.
+</ParamField>
+
+<ParamField header="x-portkey-api-key" type="string" required>
+  Your Portkey API key or provider API key.
+</ParamField>
+
+<ParamField query="limit" type="number" default="20">
+  Maximum number of jobs to return.
+</ParamField>
+
+<ParamField query="after" type="string">
+  Cursor for pagination. Pass the `id` of the last job from the previous page.
+</ParamField>
+
+### Response
+
+<ResponseField name="object" type="string">
+  Always `list`.
+</ResponseField>
+
+<ResponseField name="data" type="array">
+  Array of fine-tuning job objects.
+</ResponseField>
+
+<ResponseField name="has_more" type="boolean">
+  Whether additional jobs are available.
+</ResponseField>
+
+<CodeGroup>
+
+```bash cURL
+curl https://your-gateway.example.com/v1/fine_tuning/jobs \
+  -H "x-portkey-api-key: YOUR_API_KEY" \
+  -H "x-portkey-provider: openai"
+```
+
+```python Python
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="https://your-gateway.example.com/v1",
+    api_key="YOUR_API_KEY",
+    default_headers={
+        "x-portkey-provider": "openai",
+    },
+)
+
+jobs = client.fine_tuning.jobs.list()
+for job in jobs.data:
+    print(job.id, job.status)
+```
+
+```javascript JavaScript
+import OpenAI from "openai";
+
+const client = new OpenAI({
+  baseURL: "https://your-gateway.example.com/v1",
+  apiKey: "YOUR_API_KEY",
+  defaultHeaders: {
+    "x-portkey-provider": "openai",
+  },
+});
+
+const jobs = await client.fineTuning.jobs.list();
+for (const job of jobs.data) {
+  console.log(job.id, job.status);
+}
+```
+
+</CodeGroup>
+
+---
+
+## Create a fine-tuning job
+
+`POST /v1/fine_tuning/jobs`
+
+Creates a new fine-tuning job. The request body is forwarded directly to the provider.
+
+### Request
+
+<ParamField header="x-portkey-provider" type="string" required>
+  The provider to route the request to.
+</ParamField>
+
+<ParamField header="x-portkey-api-key" type="string" required>
+  Your Portkey API key or provider API key.
+</ParamField>
+
+<ParamField body="training_file" type="string" required>
+  The ID of the uploaded training file (must have `purpose=fine-tune`).
+</ParamField>
+
+<ParamField body="model" type="string" required>
+  The base model to fine-tune. For example, `gpt-4o-mini-2024-07-18`.
+</ParamField>
+
+<ParamField body="validation_file" type="string">
+  The ID of an optional validation file.
+</ParamField>
+
+<ParamField body="hyperparameters" type="object">
+  <Expandable title="properties">
+    <ParamField body="n_epochs" type="number | string">
+      Number of training epochs. Use `auto` to let the provider decide.
+    </ParamField>
+    <ParamField body="batch_size" type="number | string">
+      Training batch size. Use `auto` for provider default.
+    </ParamField>
+    <ParamField body="learning_rate_multiplier" type="number | string">
+      Multiplier applied to the base learning rate. Use `auto` for provider default.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="suffix" type="string">
+  A string of up to 18 characters appended to the fine-tuned model name.
+</ParamField>
+
+<ParamField body="metadata" type="object">
+  Optional key-value metadata to attach to the job.
+</ParamField>
+
+### Response
+
+<ResponseField name="id" type="string">
+  Unique identifier for the fine-tuning job.
+</ResponseField>
+
+<ResponseField name="object" type="string">
+  Always `fine_tuning.job`.
+</ResponseField>
+
+<ResponseField name="model" type="string">
+  The base model being fine-tuned.
+</ResponseField>
+
+<ResponseField name="fine_tuned_model" type="string">
+  The name of the fine-tuned model once training completes. `null` while in progress.
+</ResponseField>
+
+<ResponseField name="status" type="string">
+  Current job status. Values: `validating_files`, `queued`, `running`, `succeeded`, `failed`, `cancelled`.
+</ResponseField>
+
+<ResponseField name="created_at" type="number">
+  Unix timestamp when the job was created.
+</ResponseField>
+
+<ResponseField name="trained_tokens" type="number">
+  Number of tokens used in training, or `null` if not yet available.
+</ResponseField>
+
+<CodeGroup>
+
+```bash cURL
+curl https://your-gateway.example.com/v1/fine_tuning/jobs \
+  -X POST \
+  -H "Content-Type: application/json" \
+  -H "x-portkey-api-key: YOUR_API_KEY" \
+  -H "x-portkey-provider: openai" \
+  -d '{
+    "training_file": "file-abc123",
+    "model": "gpt-4o-mini-2024-07-18"
+  }'
+```
+
+```python Python
+job = client.fine_tuning.jobs.create(
+    training_file="file-abc123",
+    model="gpt-4o-mini-2024-07-18",
+)
+print(job.id, job.status)
+```
+
+```javascript JavaScript
+const job = await client.fineTuning.jobs.create({
+  training_file: "file-abc123",
+  model: "gpt-4o-mini-2024-07-18",
+});
+console.log(job.id, job.status);
+```
+
+</CodeGroup>
+
+---
+
+## Retrieve a fine-tuning job
+
+`GET /v1/fine_tuning/jobs/:id`
+
+Retrieves details for a specific fine-tuning job. Use this to poll the status of an in-progress job.
+
+### Request
+
+<ParamField path="id" type="string" required>
+  The ID of the fine-tuning job to retrieve.
+</ParamField>
+
+<ParamField header="x-portkey-provider" type="string" required>
+  The provider to route the request to.
+</ParamField>
+
+<ParamField header="x-portkey-api-key" type="string" required>
+  Your Portkey API key or provider API key.
+</ParamField>
+
+### Response
+
+Returns a single fine-tuning job object. See [Create a fine-tuning job](#create-a-fine-tuning-job) for the full field list.
+
+<CodeGroup>
+
+```bash cURL
+curl https://your-gateway.example.com/v1/fine_tuning/jobs/ftjob-abc123 \
+  -H "x-portkey-api-key: YOUR_API_KEY" \
+  -H "x-portkey-provider: openai"
+```
+
+```python Python
+job = client.fine_tuning.jobs.retrieve("ftjob-abc123")
+print(job.status, job.fine_tuned_model)
+```
+
+```javascript JavaScript
+const job = await client.fineTuning.jobs.retrieve("ftjob-abc123");
+console.log(job.status, job.fine_tuned_model);
+```
+
+</CodeGroup>
+
+---
+
+## Cancel a fine-tuning job
+
+`POST /v1/fine_tuning/jobs/:id/cancel`
+
+Cancels a fine-tuning job that is queued or running.
+
+<Warning>
+  Once a job is cancelled it cannot be resumed. Any compute costs incurred up to the cancellation point may still apply.
+</Warning>
+
+### Request
+
+<ParamField path="id" type="string" required>
+  The ID of the fine-tuning job to cancel.
+</ParamField>
+
+<ParamField header="x-portkey-provider" type="string" required>
+  The provider to route the request to.
+</ParamField>
+
+<ParamField header="x-portkey-api-key" type="string" required>
+  Your Portkey API key or provider API key.
+</ParamField>
+
+### Response
+
+Returns the updated fine-tuning job object with `status: cancelled`.
+
+<CodeGroup>
+
+```bash cURL
+curl https://your-gateway.example.com/v1/fine_tuning/jobs/ftjob-abc123/cancel \
+  -X POST \
+  -H "x-portkey-api-key: YOUR_API_KEY" \
+  -H "x-portkey-provider: openai"
+```
+
+```python Python
+job = client.fine_tuning.jobs.cancel("ftjob-abc123")
+print(job.status)  # cancelled
+```
+
+```javascript JavaScript
+const job = await client.fineTuning.jobs.cancel("ftjob-abc123");
+console.log(job.status); // cancelled
+```
+
+</CodeGroup>

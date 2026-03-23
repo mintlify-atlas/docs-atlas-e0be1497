@@ -1,0 +1,91 @@
+---
+title: "Overview"
+description: "REST API reference for the Portkey AI Gateway — an OpenAI-compatible interface that routes to 250+ LLMs."
+---
+
+The Portkey AI Gateway exposes an OpenAI-compatible REST API. You can point any OpenAI SDK or HTTP client at the gateway and route requests to any supported provider by adding a few extra headers.
+
+## Base URL
+
+<CodeGroup>
+
+```bash Local
+http://localhost:8787/v1
+```
+
+```bash Portkey Cloud
+https://api.portkey.ai/v1
+```
+
+</CodeGroup>
+
+<Note>
+  When running locally with `npx @portkey-ai/gateway`, the gateway listens on `http://localhost:8787/v1`. The console UI is available at `http://localhost:8787/public/`.
+</Note>
+
+## Request requirements
+
+Every request must include either:
+
+- `x-portkey-provider` — to route directly to a single provider, **or**
+- `x-portkey-config` — to use a routing config (fallback, load balancing, guardrails, etc.)
+
+See [Authentication](/api-reference/authentication) and [Headers](/api-reference/headers) for details.
+
+## Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/v1/chat/completions` | Chat completions (OpenAI-compatible). Supports streaming. |
+| `POST` | `/v1/completions` | Legacy text completions. |
+| `POST` | `/v1/embeddings` | Generate text embeddings. |
+| `POST` | `/v1/messages` | Anthropic Messages API format. |
+| `POST` | `/v1/messages/count_tokens` | Count tokens for an Anthropic request without generating a response. |
+| `POST` | `/v1/images/generations` | Generate images from a text prompt. |
+| `POST` | `/v1/images/edits` | Edit an existing image with a text prompt. |
+| `POST` | `/v1/audio/speech` | Text-to-speech synthesis. |
+| `POST` | `/v1/audio/transcriptions` | Speech-to-text transcription (multipart/form-data). |
+| `POST` | `/v1/audio/translations` | Translate audio to English text (multipart/form-data). |
+| `GET` | `/v1/models` | List available models for a provider. |
+| `GET` | `/v1/files` | List uploaded files. |
+| `POST` | `/v1/files` | Upload a file. |
+| `GET` | `/v1/files/:id` | Retrieve file metadata. |
+| `GET` | `/v1/files/:id/content` | Download file content. |
+| `DELETE` | `/v1/files/:id` | Delete a file. |
+| `POST` | `/v1/batches` | Create a batch job. |
+| `GET` | `/v1/batches` | List batch jobs. |
+| `GET` | `/v1/batches/:id` | Retrieve a batch job. |
+| `GET` | `/v1/batches/*/output` | Get batch job output. |
+| `POST` | `/v1/batches/:id/cancel` | Cancel a batch job. |
+| `POST` | `/v1/responses` | Create a model response (Responses API). |
+| `GET` | `/v1/responses/:id` | Retrieve a model response. |
+| `DELETE` | `/v1/responses/:id` | Delete a model response. |
+| `GET` | `/v1/responses/:id/input_items` | List input items for a response. |
+| `GET`, `POST` | `/v1/fine_tuning/jobs` | List or create fine-tuning jobs. |
+| `GET`, `POST` | `/v1/fine_tuning/jobs/:jobId` | Retrieve or manage a fine-tuning job. |
+| `GET` | `/v1/realtime` | WebSocket endpoint for real-time streaming (Cloudflare Workers runtime only). |
+
+## OpenAI compatibility
+
+The gateway is a drop-in replacement for the OpenAI API base URL. To migrate an existing OpenAI integration:
+
+1. Change the base URL to `http://localhost:8787/v1` (local) or your deployed gateway URL.
+2. Add the `x-portkey-provider` header to specify which provider to route to.
+3. Add an `Authorization` header with the provider API key.
+
+```python
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="http://localhost:8787/v1",
+    api_key="ignore",  # not used by the gateway directly
+    default_headers={
+        "x-portkey-provider": "openai",
+        "Authorization": "Bearer sk-...",
+    },
+)
+```
+
+## Provider passthrough
+
+For endpoints not explicitly handled by the gateway, requests to `/v1/*` are forwarded directly to the configured provider. This enables access to provider-specific endpoints beyond the standard OpenAI surface.

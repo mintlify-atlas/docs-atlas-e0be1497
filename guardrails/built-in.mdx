@@ -1,0 +1,699 @@
+---
+title: "Built-in Guardrails"
+description: "Reference for all 21 functions in the default guardrail plugin, covering regex, word matching, JSON validation, content checks, and transformers."
+---
+
+The `default` plugin ships with the AI Gateway and requires no additional credentials or configuration. Reference each function by the ID `default.<functionId>`.
+
+<Note>
+Hooks listed as `beforeRequestHook` run on the **input** (place in `input_guardrails`). Hooks listed as `afterRequestHook` run on the **output** (place in `output_guardrails`). Some functions support both.
+</Note>
+
+## Text matching
+
+<AccordionGroup>
+
+<Accordion title="default.regexMatch — Regex Match">
+
+Checks whether the request or response text matches a regular expression pattern.
+
+**Supported hooks:** `beforeRequestHook`, `afterRequestHook`
+
+<ParamField body="rule" type="string" required>
+  The regex pattern to test against the content.
+</ParamField>
+
+<ParamField body="not" type="boolean" default="false">
+  When `true`, the verdict is inverted — passes when the pattern does **not** match.
+</ParamField>
+
+```json Example — block credit card numbers in prompts
+{
+  "input_guardrails": [{
+    "default.regexMatch": {
+      "rule": "\\d{4}-\\d{4}-\\d{4}-\\d{4}"
+    },
+    "deny": true
+  }]
+}
+```
+
+</Accordion>
+
+<Accordion title="default.contains — Contains">
+
+Checks whether the content contains any, all, or none of a list of words or phrases.
+
+**Supported hooks:** `afterRequestHook`
+
+<ParamField body="words" type="array" required>
+  List of words or phrases to look for.
+</ParamField>
+
+<ParamField body="operator" type="string" required>
+  How to apply the word list. One of `any`, `all`, or `none`.
+</ParamField>
+
+```json Example — block responses that mention competitors
+{
+  "output_guardrails": [{
+    "default.contains": {
+      "operator": "none",
+      "words": ["CompetitorA", "CompetitorB"]
+    },
+    "deny": true
+  }]
+}
+```
+
+</Accordion>
+
+<Accordion title="default.endsWith — Ends With">
+
+Checks whether the content ends with a specified string.
+
+**Supported hooks:** `beforeRequestHook`, `afterRequestHook`
+
+<ParamField body="suffix" type="string" required>
+  The string the content must end with.
+</ParamField>
+
+<ParamField body="not" type="boolean" default="false">
+  When `true`, the verdict is inverted — passes when the content does **not** end with the suffix.
+</ParamField>
+
+```json Example — enforce responses end with a disclaimer
+{
+  "output_guardrails": [{
+    "default.endsWith": {
+      "suffix": "This is not legal advice."
+    },
+    "deny": false
+  }]
+}
+```
+
+</Accordion>
+
+<Accordion title="default.alluppercase — Uppercase Check">
+
+Checks whether the content consists entirely of uppercase letters.
+
+**Supported hooks:** `beforeRequestHook`, `afterRequestHook`
+
+<ParamField body="not" type="boolean" default="false">
+  When `true`, the verdict is inverted — passes when content is **not** all uppercase.
+</ParamField>
+
+```json Example — reject all-caps prompts
+{
+  "input_guardrails": [{
+    "default.alluppercase": {},
+    "deny": true
+  }]
+}
+```
+
+</Accordion>
+
+<Accordion title="default.alllowercase — Lowercase Check">
+
+Checks whether the content consists entirely of lowercase letters.
+
+**Supported hooks:** `beforeRequestHook`, `afterRequestHook`
+
+<ParamField body="not" type="boolean" default="false">
+  When `true`, the verdict is inverted — passes when content is **not** all lowercase.
+</ParamField>
+
+```json Example — require mixed case in user messages
+{
+  "input_guardrails": [{
+    "default.alllowercase": {"not": true},
+    "deny": false
+  }]
+}
+```
+
+</Accordion>
+
+</AccordionGroup>
+
+## Length checks
+
+<AccordionGroup>
+
+<Accordion title="default.wordCount — Word Count">
+
+Checks whether the content falls within a specified word count range.
+
+**Supported hooks:** `beforeRequestHook`, `afterRequestHook`
+
+<ParamField body="minWords" type="number" default="0">
+  Minimum number of words required.
+</ParamField>
+
+<ParamField body="maxWords" type="number" default="99999">
+  Maximum number of words allowed.
+</ParamField>
+
+<ParamField body="not" type="boolean" default="false">
+  When `true`, the verdict is inverted — passes when the count is **outside** the range.
+</ParamField>
+
+```json Example — enforce concise responses (max 200 words)
+{
+  "output_guardrails": [{
+    "default.wordCount": {
+      "maxWords": 200
+    },
+    "deny": false
+  }]
+}
+```
+
+</Accordion>
+
+<Accordion title="default.sentenceCount — Sentence Count">
+
+Checks whether the content contains a number of sentences within the specified range.
+
+**Supported hooks:** `beforeRequestHook`, `afterRequestHook`
+
+<ParamField body="minSentences" type="number" default="0">
+  Minimum number of sentences required.
+</ParamField>
+
+<ParamField body="maxSentences" type="number" default="99999">
+  Maximum number of sentences allowed.
+</ParamField>
+
+<ParamField body="not" type="boolean" default="false">
+  When `true`, the verdict is inverted — passes when the count is **outside** the range.
+</ParamField>
+
+```json Example — require at least 3 sentences in a response
+{
+  "output_guardrails": [{
+    "default.sentenceCount": {
+      "minSentences": 3
+    },
+    "deny": true
+  }]
+}
+```
+
+</Accordion>
+
+<Accordion title="default.characterCount — Character Count">
+
+Checks whether the content length in characters falls within the specified range.
+
+**Supported hooks:** `beforeRequestHook`, `afterRequestHook`
+
+<ParamField body="minCharacters" type="number" default="0">
+  Minimum character count required.
+</ParamField>
+
+<ParamField body="maxCharacters" type="number" default="9999999">
+  Maximum character count allowed.
+</ParamField>
+
+<ParamField body="not" type="boolean" default="false">
+  When `true`, the verdict is inverted — passes when the count is **outside** the range.
+</ParamField>
+
+```json Example — block very short responses
+{
+  "output_guardrails": [{
+    "default.characterCount": {
+      "minCharacters": 50
+    },
+    "deny": true
+  }]
+}
+```
+
+</Accordion>
+
+</AccordionGroup>
+
+## JSON validation
+
+<AccordionGroup>
+
+<Accordion title="default.jsonSchema — JSON Schema">
+
+Validates the response content against a JSON Schema definition. Useful when you expect structured output from the model.
+
+**Supported hooks:** `afterRequestHook`
+
+<ParamField body="schema" type="object" required>
+  A valid JSON Schema object.
+</ParamField>
+
+<ParamField body="not" type="boolean" default="false">
+  When `true`, the verdict is inverted — passes when the schema does **not** match.
+</ParamField>
+
+```json Example — enforce structured output shape
+{
+  "output_guardrails": [{
+    "default.jsonSchema": {
+      "schema": {
+        "type": "object",
+        "properties": {
+          "answer": {"type": "string"},
+          "confidence": {"type": "number"}
+        },
+        "required": ["answer", "confidence"]
+      }
+    },
+    "deny": true
+  }]
+}
+```
+
+</Accordion>
+
+<Accordion title="default.jsonKeys — JSON Keys">
+
+Checks whether the response JSON object contains any, all, or none of the specified keys.
+
+**Supported hooks:** `afterRequestHook`
+
+<ParamField body="keys" type="array" required>
+  List of key names to check for.
+</ParamField>
+
+<ParamField body="operator" type="string" required>
+  How to interpret the key list. One of `any`, `all`, or `none`.
+</ParamField>
+
+```json Example — ensure required keys exist in the response
+{
+  "output_guardrails": [{
+    "default.jsonKeys": {
+      "keys": ["summary", "tags"],
+      "operator": "all"
+    },
+    "deny": true
+  }]
+}
+```
+
+</Accordion>
+
+</AccordionGroup>
+
+## URL and code checks
+
+<AccordionGroup>
+
+<Accordion title="default.validUrls — Valid URLs">
+
+Checks whether all URLs referenced in the response content are reachable.
+
+**Supported hooks:** `afterRequestHook`
+
+<ParamField body="onlyDNS" type="boolean" default="false">
+  When `true`, only checks that each URL's domain resolves via DNS (much faster than full HTTP checks).
+</ParamField>
+
+<ParamField body="not" type="boolean" default="false">
+  When `true`, the verdict is inverted — passes when URLs are **not** all valid.
+</ParamField>
+
+```json Example — validate all URLs resolve
+{
+  "output_guardrails": [{
+    "default.validUrls": {
+      "onlyDNS": true
+    },
+    "deny": false
+  }]
+}
+```
+
+</Accordion>
+
+<Accordion title="default.containsCode — Contains Code">
+
+Checks whether the response contains a code block in a specified language.
+
+**Supported hooks:** `afterRequestHook`
+
+<ParamField body="format" type="string" required>
+  The language to look for. Supported values: `SQL`, `Python`, `TypeScript`, `JavaScript`, `Java`, `C#`, `C++`, `C`, `Ruby`, `PHP`, `Swift`, `Kotlin`, `Go`, `Rust`, `Scala`, `R`, `Perl`, `Shell`, `HTML`, `CSS`, `XML`, `JSON`, `YAML`, `Markdown`, `Dockerfile`.
+</ParamField>
+
+<ParamField body="not" type="boolean" default="false">
+  When `true`, the verdict is inverted — passes when code is **not** present.
+</ParamField>
+
+```json Example — block responses that contain SQL
+{
+  "output_guardrails": [{
+    "default.containsCode": {
+      "format": "SQL",
+      "not": true
+    },
+    "deny": true
+  }]
+}
+```
+
+</Accordion>
+
+</AccordionGroup>
+
+## Request and model controls
+
+<AccordionGroup>
+
+<Accordion title="default.allowedRequestTypes — Allowed Request Types">
+
+Controls which request endpoint types (e.g. chat completions, embeddings, image generation) are permitted or blocked. If neither list is provided, all request types are allowed.
+
+**Supported hooks:** `beforeRequestHook`
+
+<ParamField body="allowedTypes" type="array">
+  Request types to allow. When combined with `blockedTypes`, blocked types take precedence. Can also be specified in request metadata as `supported_endpoints`.
+
+  Possible values: `complete`, `chatComplete`, `embed`, `rerank`, `moderate`, `stream-complete`, `stream-chatComplete`, `stream-messages`, `proxy`, `imageGenerate`, `createSpeech`, `createTranscription`, `createTranslation`, `realtime`, `uploadFile`, `listFiles`, `retrieveFile`, `deleteFile`, `retrieveFileContent`, `createBatch`, `retrieveBatch`, `cancelBatch`, `listBatches`, `getBatchOutput`, `listFinetunes`, `createFinetune`, `retrieveFinetune`, `cancelFinetune`, `createModelResponse`, `getModelResponse`, `deleteModelResponse`, `listResponseInputItems`, `messages`.
+</ParamField>
+
+<ParamField body="blockedTypes" type="array">
+  Request types to block. Takes precedence over `allowedTypes`. Can also be specified in request metadata as `blocked_endpoints`.
+</ParamField>
+
+```json Example — only allow chat completions and embeddings
+{
+  "input_guardrails": [{
+    "default.allowedRequestTypes": {
+      "allowedTypes": ["chatComplete", "embed"]
+    },
+    "deny": true
+  }]
+}
+```
+
+</Accordion>
+
+<Accordion title="default.modelwhitelist — Allowed Models">
+
+Blocks any request whose model is not on the specified list (or, when inverted, blocks any model that **is** on the list).
+
+**Supported hooks:** `beforeRequestHook`
+
+<ParamField body="models" type="array" required>
+  List of allowed model identifiers, e.g. `gpt-4o`, `llama-3-70b`, `mixtral-8x7b`.
+</ParamField>
+
+<ParamField body="not" type="boolean" default="false">
+  When `true`, any model in the list is **blocked** instead of allowed.
+</ParamField>
+
+```json Example — restrict to approved models only
+{
+  "input_guardrails": [{
+    "default.modelwhitelist": {
+      "models": ["gpt-4o", "gpt-4o-mini"]
+    },
+    "deny": true
+  }]
+}
+```
+
+</Accordion>
+
+<Accordion title="default.modelRules — Model Rules">
+
+Allow or deny requests based on metadata-driven rules that map metadata values to permitted model lists. Useful for enforcing per-user or per-team model access policies.
+
+**Supported hooks:** `beforeRequestHook`
+
+<ParamField body="rules" type="object" required>
+  Rules object with the structure:
+  ```json
+  {
+    "defaults": ["model-id"],
+    "metadata": {
+      "key": {
+        "value": ["model-id"]
+      }
+    }
+  }
+  ```
+  `defaults` defines the fallback allowed model list. `metadata` maps metadata key-value pairs to specific model lists.
+</ParamField>
+
+<ParamField body="not" type="boolean" default="false">
+  When `true`, any model resolved by the rules is **blocked** instead of allowed.
+</ParamField>
+
+```json Example — different model access per user tier
+{
+  "input_guardrails": [{
+    "default.modelRules": {
+      "rules": {
+        "defaults": ["gpt-4o-mini"],
+        "metadata": {
+          "user_tier": {
+            "pro": ["gpt-4o", "gpt-4o-mini"],
+            "enterprise": ["gpt-4o", "gpt-4o-mini", "o1-preview"]
+          }
+        }
+      }
+    },
+    "deny": true
+  }]
+}
+```
+
+</Accordion>
+
+</AccordionGroup>
+
+## Security and authentication
+
+<AccordionGroup>
+
+<Accordion title="default.jwt — JWT Validation">
+
+Validates a JWT token present in the request headers using a remote JWKS endpoint.
+
+**Supported hooks:** `beforeRequestHook`
+
+<ParamField body="jwksUri" type="string" required>
+  The JWKS URI used to retrieve the public key for verification.
+</ParamField>
+
+<ParamField body="headerKey" type="string" required>
+  The header name that carries the JWT token (e.g. `Authorization`).
+</ParamField>
+
+<ParamField body="cacheMaxAge" type="number" default="86400">
+  How long (in seconds) to cache the JWKS response. Defaults to 24 hours.
+</ParamField>
+
+<ParamField body="clockTolerance" type="number" default="5">
+  Clock skew tolerance in seconds when validating the `exp` and `iat` claims.
+</ParamField>
+
+<ParamField body="maxTokenAge" type="string" default="1d">
+  Maximum acceptable token age (e.g. `1d`, `2h`, `30m`).
+</ParamField>
+
+```json Example — enforce valid JWT on every request
+{
+  "input_guardrails": [{
+    "default.jwt": {
+      "jwksUri": "https://auth.example.com/.well-known/jwks.json",
+      "headerKey": "Authorization"
+    },
+    "deny": true
+  }]
+}
+```
+
+</Accordion>
+
+<Accordion title="default.requiredMetadataKeys — Required Metadata Keys">
+
+Checks that the request metadata contains the required keys. Useful for enforcing traceability — e.g. every request must include a `user_id` and `session_id`.
+
+**Supported hooks:** `beforeRequestHook`
+
+<ParamField body="metadataKeys" type="array" required>
+  The metadata keys that must be present.
+</ParamField>
+
+<ParamField body="operator" type="string" default="all">
+  How to interpret the key list. One of `all`, `any`, or `none`.
+</ParamField>
+
+```json Example — require user_id and session_id in every request
+{
+  "input_guardrails": [{
+    "default.requiredMetadataKeys": {
+      "metadataKeys": ["user_id", "session_id"],
+      "operator": "all"
+    },
+    "deny": true
+  }]
+}
+```
+
+</Accordion>
+
+</AccordionGroup>
+
+## Webhooks and logging
+
+<AccordionGroup>
+
+<Accordion title="default.webhook — Webhook">
+
+Forwards the request or response to an external HTTP endpoint and uses its response as the guardrail verdict. Your endpoint should return a JSON body with a `verdict` boolean.
+
+**Supported hooks:** `beforeRequestHook`, `afterRequestHook`
+
+<ParamField body="webhookURL" type="string" required>
+  The URL to POST to, e.g. `https://webhook.site/guardrail`.
+</ParamField>
+
+<ParamField body="headers" type="object">
+  Additional HTTP headers to include in the webhook request.
+</ParamField>
+
+```json Example — delegate decision to a custom service
+{
+  "input_guardrails": [{
+    "default.webhook": {
+      "webhookURL": "https://your-service.example.com/guardrail",
+      "headers": {
+        "Authorization": "Bearer my-secret"
+      }
+    },
+    "deny": true
+  }]
+}
+```
+
+</Accordion>
+
+<Accordion title="default.log — Log">
+
+Forwards request/response data to a logging endpoint. Always returns `true` as the verdict — this function never blocks traffic.
+
+**Supported hooks:** `afterRequestHook`
+
+<ParamField body="logURL" type="string" required>
+  The URL to POST log data to, e.g. `https://logging.site/collector`.
+</ParamField>
+
+<ParamField body="headers" type="object">
+  Additional HTTP headers to include in the log request.
+</ParamField>
+
+```json Example — send all responses to a log collector
+{
+  "output_guardrails": [{
+    "default.log": {
+      "logURL": "https://logs.example.com/ai-responses",
+      "headers": {"X-API-Key": "log-key"}
+    },
+    "deny": false
+  }]
+}
+```
+
+</Accordion>
+
+</AccordionGroup>
+
+## Response quality
+
+<AccordionGroup>
+
+<Accordion title="default.notNull — Not Null">
+
+Checks that the response content is not null, undefined, or empty. Useful for detecting when a model returns no content.
+
+**Supported hooks:** `afterRequestHook`
+
+<ParamField body="not" type="boolean" default="false">
+  When `true`, the verdict is inverted — passes when the content **is** null or empty.
+</ParamField>
+
+```json Example — retry if the model returns an empty response
+{
+  "retry": {"attempts": 3},
+  "output_guardrails": [{
+    "default.notNull": {},
+    "deny": true
+  }]
+}
+```
+
+</Accordion>
+
+</AccordionGroup>
+
+## Transformers
+
+Transformers mutate the request or response rather than returning a pass/fail verdict. They run in `beforeRequestHook` and modify the prompt before it reaches the LLM.
+
+<AccordionGroup>
+
+<Accordion title="default.addPrefix — Add Prefix">
+
+Prepends a configurable text string to the user's prompt or messages before sending to the LLM. This is a **transformer** — it modifies the request rather than blocking it.
+
+**Supported hooks:** `beforeRequestHook`
+
+<ParamField body="prefix" type="string" required>
+  The text to prepend. Defaults to `"Please respond helpfully and accurately to the following: "`.
+</ParamField>
+
+<ParamField body="applyToRole" type="string" default="user">
+  For chat completions, which message role to apply the prefix to. One of `user`, `system`, or `assistant`.
+</ParamField>
+
+<ParamField body="addToExisting" type="boolean" default="true">
+  When `true`, prepends the prefix to the existing message content. When `false`, inserts a new message with only the prefix text.
+</ParamField>
+
+<ParamField body="onlyIfEmpty" type="boolean" default="false">
+  Only apply the prefix if no message exists for the specified role. Useful for conditionally adding a system message.
+</ParamField>
+
+```json Example — prepend a system-level instruction to every user message
+{
+  "input_guardrails": [{
+    "default.addPrefix": {
+      "prefix": "You are a helpful assistant. Always respond in English. User query: ",
+      "applyToRole": "user"
+    },
+    "deny": false
+  }]
+}
+```
+
+```json Example — add a system message only if none exists
+{
+  "input_guardrails": [{
+    "default.addPrefix": {
+      "prefix": "You are a helpful customer support assistant.",
+      "applyToRole": "system",
+      "onlyIfEmpty": true
+    },
+    "deny": false
+  }]
+}
+```
+
+</Accordion>
+
+</AccordionGroup>

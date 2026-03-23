@@ -1,0 +1,231 @@
+---
+title: "CrewAI"
+description: "Monitor and route CrewAI agent crews through the AI Gateway for cost tracking, routing, and reliability."
+---
+
+[CrewAI](https://github.com/joaomdmoura/crewAI) is an agent framework for orchestrating role-playing, autonomous AI agents. Agents are assigned roles, goals, and backstories, then collaborate to complete multi-step tasks. By routing CrewAI's LLM calls through the Portkey AI Gateway, you gain visibility into cost, token usage, and latency across every agent run.
+
+## Installation
+
+<Steps>
+  <Step title="Start the gateway">
+    <Tabs>
+      <Tab title="Local (npx)">
+        ```bash
+        npx @portkey-ai/gateway
+        ```
+
+        The gateway listens at `http://localhost:8787/v1`.
+      </Tab>
+      <Tab title="Portkey Cloud">
+        Sign up at [app.portkey.ai](https://app.portkey.ai) and copy your API key. Use `https://api.portkey.ai/v1` as the base URL.
+      </Tab>
+    </Tabs>
+  </Step>
+
+  <Step title="Install dependencies">
+    ```bash
+    pip install crewai portkey-ai
+    ```
+  </Step>
+</Steps>
+
+## Basic setup
+
+CrewAI's `LLM` class accepts `base_url` and `extra_headers`, making it straightforward to route through the gateway.
+
+```python
+from crewai import LLM, Agent, Task, Crew
+from portkey_ai import createHeaders, PORTKEY_GATEWAY_URL
+
+llm = LLM(
+    model="gpt-4o",
+    base_url=PORTKEY_GATEWAY_URL,
+    api_key="dummy",  # Portkey handles auth via virtual key
+    extra_headers=createHeaders(
+        api_key="YOUR_PORTKEY_API_KEY",
+        virtual_key="YOUR_VIRTUAL_KEY"
+    )
+)
+
+agent = Agent(
+    role="Researcher",
+    goal="Research AI topics",
+    backstory="An expert researcher with deep knowledge of AI systems.",
+    llm=llm
+)
+
+task = Task(
+    description="Summarize the key benefits of AI gateway routing.",
+    expected_output="A concise bullet-point summary.",
+    agent=agent
+)
+
+crew = Crew(agents=[agent], tasks=[task])
+result = crew.kickoff()
+print(result)
+```
+
+<Note>
+  You can also use `langchain_openai.ChatOpenAI` with CrewAI if you prefer the LangChain integration. See the [LangChain integration](/integrations/langchain) page for setup details.
+</Note>
+
+## Connecting via LangChain
+
+If you are already using LangChain in your stack, pass a `ChatOpenAI` instance directly as the `llm` on each agent.
+
+```python
+from crewai import Agent, Task, Crew
+from langchain_openai import ChatOpenAI
+from portkey_ai import createHeaders, PORTKEY_GATEWAY_URL
+
+llm = ChatOpenAI(
+    model="gpt-4o",
+    base_url=PORTKEY_GATEWAY_URL,
+    api_key="dummy",
+    default_headers=createHeaders(
+        api_key="YOUR_PORTKEY_API_KEY",
+        virtual_key="YOUR_VIRTUAL_KEY"
+    )
+)
+
+agent = Agent(
+    role="Researcher",
+    goal="Research AI topics",
+    backstory="An expert researcher with deep knowledge of AI systems.",
+    llm=llm
+)
+```
+
+## Using multiple LLMs across agents
+
+Assign different models to different agents to balance cost and capability. All requests remain visible in the Portkey observability dashboard.
+
+```python
+from crewai import Agent, Task, Crew, Process
+from portkey_ai import createHeaders, PORTKEY_GATEWAY_URL
+from crewai import LLM
+
+# GPT-4o for strategic reasoning
+gpt_llm = LLM(
+    model="gpt-4o",
+    base_url=PORTKEY_GATEWAY_URL,
+    api_key="dummy",
+    extra_headers=createHeaders(
+        api_key="YOUR_PORTKEY_API_KEY",
+        virtual_key="YOUR_OPENAI_VIRTUAL_KEY"
+    )
+)
+
+# Claude Sonnet for writing tasks
+anthropic_llm = LLM(
+    model="claude-3-5-sonnet-latest",
+    base_url=PORTKEY_GATEWAY_URL,
+    api_key="dummy",
+    extra_headers=createHeaders(
+        api_key="YOUR_PORTKEY_API_KEY",
+        virtual_key="YOUR_ANTHROPIC_VIRTUAL_KEY",
+        config="YOUR_PORTKEY_CONFIG_ID",
+        trace_id="crew-run-001"
+    )
+)
+
+product_manager = Agent(
+    role="Product Manager",
+    goal="Define clear requirements for a software product",
+    backstory="An experienced PM skilled in writing concise, developer-ready specs.",
+    llm=gpt_llm
+)
+
+developer = Agent(
+    role="Software Developer",
+    goal="Develop software based on the provided requirements",
+    backstory="A skilled developer proficient in building robust applications.",
+    llm=anthropic_llm
+)
+
+task1 = Task(
+    description="Define the key requirements for a classic ping-pong game.",
+    expected_output="A clear, concise list of requirements.",
+    agent=product_manager
+)
+
+task2 = Task(
+    description="Based on the requirements, write Python code for the ping-pong game.",
+    expected_output="Complete, runnable Python code.",
+    agent=developer
+)
+
+crew = Crew(
+    agents=[product_manager, developer],
+    tasks=[task1, task2],
+    process=Process.sequential,
+    verbose=True
+)
+
+result = crew.kickoff()
+print(result)
+```
+
+## Real-world use case: web research crew
+
+A two-agent crew that researches a topic and writes a report, with retry logic configured at the gateway.
+
+```python
+from crewai import Agent, Task, Crew, Process
+from crewai import LLM
+import json
+
+config = {
+    "retry": {"attempts": 5},
+    "cache": {"mode": "simple"}
+}
+
+llm = LLM(
+    model="gpt-4o-mini",
+    base_url="http://localhost:8787/v1",
+    api_key="sk-***",
+    extra_headers={
+        "x-portkey-config": json.dumps(config)
+    }
+)
+
+researcher = Agent(
+    role="Senior Research Analyst",
+    goal="Uncover cutting-edge developments in AI",
+    backstory="You work at a leading tech think tank. Your expertise lies in identifying emerging trends.",
+    llm=llm
+)
+
+writer = Agent(
+    role="Tech Content Strategist",
+    goal="Craft compelling content on tech advancements",
+    backstory="You are a renowned Content Strategist known for insightful articles on technology.",
+    llm=llm
+)
+
+research_task = Task(
+    description="Conduct a comprehensive analysis of the latest advancements in AI in 2025.",
+    expected_output="Full analysis report in bullet points.",
+    agent=researcher
+)
+
+write_task = Task(
+    description="Compose an insightful article on the AI advancements from the research.",
+    expected_output="A 4-paragraph article formatted as markdown.",
+    agent=writer
+)
+
+crew = Crew(
+    agents=[researcher, writer],
+    tasks=[research_task, write_task],
+    process=Process.sequential
+)
+
+result = crew.kickoff()
+print(result)
+```
+
+<Tip>
+  The `trace_id` header groups all LLM calls from a single crew run in the Portkey dashboard, making it easy to debug individual runs and compare costs across executions.
+</Tip>

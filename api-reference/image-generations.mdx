@@ -1,0 +1,145 @@
+---
+title: "Image generations"
+description: "Generate images from a text prompt using supported image models."
+---
+
+## POST /v1/images/generations
+
+Generates one or more images from a text description. The gateway forwards the request to the target provider (e.g. OpenAI DALL·E, Stability AI, or others) and returns image data as URLs or base64-encoded strings.
+
+## Request headers
+
+<ParamField header="x-portkey-provider" type="string">
+  The provider to route the request to (e.g. `openai`, `stability-ai`). Required when not using a config.
+</ParamField>
+
+<ParamField header="x-portkey-api-key" type="string">
+  Your provider API key.
+</ParamField>
+
+<ParamField header="x-portkey-config" type="string">
+  A JSON config object or config ID that defines routing, fallbacks, retries, and more.
+</ParamField>
+
+<ParamField header="x-portkey-virtual-key" type="string">
+  A virtual key ID from Portkey Cloud.
+</ParamField>
+
+## Request body
+
+<ParamField body="model" type="string" required>
+  The image generation model to use (e.g. `dall-e-3`, `dall-e-2`).
+</ParamField>
+
+<ParamField body="prompt" type="string" required>
+  A text description of the desired image. For `dall-e-3`, the maximum length is 4000 characters; for `dall-e-2`, 1000 characters.
+</ParamField>
+
+<ParamField body="n" type="integer" default="1">
+  The number of images to generate. `dall-e-3` supports only `n=1`; `dall-e-2` supports up to 10.
+</ParamField>
+
+<ParamField body="size" type="string" default="1024x1024">
+  The dimensions of the generated images. Supported values depend on the model:
+  - `dall-e-2`: `256x256`, `512x512`, `1024x1024`
+  - `dall-e-3`: `1024x1024`, `1792x1024`, `1024x1792`
+</ParamField>
+
+<ParamField body="quality" type="string" default="standard">
+  The quality of the image. `dall-e-3` supports `standard` and `hd`. `dall-e-2` ignores this field.
+</ParamField>
+
+<ParamField body="style" type="string" default="vivid">
+  The visual style of the image. `dall-e-3` supports `vivid` (hyper-real) and `natural` (photorealistic). `dall-e-2` ignores this field.
+</ParamField>
+
+<ParamField body="response_format" type="string" default="url">
+  The format in which to return the image. One of `url` (a temporary URL valid for 60 minutes) or `b64_json` (base64-encoded PNG).
+</ParamField>
+
+<ParamField body="user" type="string">
+  A unique identifier for the end user, used for monitoring and abuse detection.
+</ParamField>
+
+## Response
+
+<ResponseField name="created" type="integer">
+  Unix timestamp of when the images were created.
+</ResponseField>
+
+<ResponseField name="data" type="object[]">
+  An array of generated image objects.
+
+  <Expandable title="properties">
+    <ResponseField name="url" type="string">
+      A temporary URL for the generated image. Present when `response_format` is `url`.
+    </ResponseField>
+    <ResponseField name="b64_json" type="string">
+      The base64-encoded image data. Present when `response_format` is `b64_json`.
+    </ResponseField>
+    <ResponseField name="revised_prompt" type="string">
+      The prompt that was used after any automatic revision. Returned by `dall-e-3`.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Code examples
+
+<CodeGroup>
+
+```bash curl
+curl https://your-gateway-url/v1/images/generations \
+  -H "Content-Type: application/json" \
+  -H "x-portkey-provider: openai" \
+  -H "x-portkey-api-key: $OPENAI_API_KEY" \
+  -d '{
+    "model": "dall-e-3",
+    "prompt": "A photorealistic image of a futuristic AI gateway in a data center",
+    "n": 1,
+    "size": "1024x1024"
+  }'
+```
+
+```python Python
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="https://your-gateway-url/v1",
+    api_key="$OPENAI_API_KEY",
+    default_headers={
+        "x-portkey-provider": "openai",
+    },
+)
+
+response = client.images.generate(
+    model="dall-e-3",
+    prompt="A photorealistic image of a futuristic AI gateway in a data center",
+    n=1,
+    size="1024x1024",
+)
+
+print(response.data[0].url)
+```
+
+```javascript JavaScript
+import OpenAI from "openai";
+
+const client = new OpenAI({
+  baseURL: "https://your-gateway-url/v1",
+  apiKey: process.env.OPENAI_API_KEY,
+  defaultHeaders: {
+    "x-portkey-provider": "openai",
+  },
+});
+
+const response = await client.images.generate({
+  model: "dall-e-3",
+  prompt: "A photorealistic image of a futuristic AI gateway in a data center",
+  n: 1,
+  size: "1024x1024",
+});
+
+console.log(response.data[0].url);
+```
+
+</CodeGroup>

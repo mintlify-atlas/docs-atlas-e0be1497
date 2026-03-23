@@ -1,0 +1,327 @@
+---
+title: "Files"
+description: "Upload, retrieve, list, and delete files used with fine-tuning, batch processing, and other API features."
+---
+
+The Files API proxies file management requests to the configured provider. All endpoints follow the OpenAI Files API contract and are forwarded via the Portkey gateway using your provider credentials.
+
+<Note>
+  You must include your provider credentials via the `x-portkey-api-key` header or a virtual key. See [Authentication](/api-reference/authentication) for details.
+</Note>
+
+## Upload a file
+
+`POST /v1/files`
+
+Uploads a file that can be used with fine-tuning, batch processing, or other provider features. The request body must be `multipart/form-data`.
+
+### Request
+
+<ParamField header="x-portkey-provider" type="string" required>
+  The provider to route the request to (e.g. `openai`, `azure-openai`).
+</ParamField>
+
+<ParamField header="x-portkey-api-key" type="string" required>
+  Your Portkey API key or the provider API key depending on your setup.
+</ParamField>
+
+<ParamField body="file" type="file" required>
+  The file object to upload. Must be a supported file format for the target provider.
+</ParamField>
+
+<ParamField body="purpose" type="string" required>
+  The intended purpose of the file. Common values: `fine-tune`, `batch`, `assistants`.
+</ParamField>
+
+### Response
+
+<ResponseField name="id" type="string">
+  The unique identifier for the uploaded file.
+</ResponseField>
+
+<ResponseField name="object" type="string">
+  Always `file`.
+</ResponseField>
+
+<ResponseField name="bytes" type="number">
+  Size of the file in bytes.
+</ResponseField>
+
+<ResponseField name="created_at" type="number">
+  Unix timestamp when the file was created.
+</ResponseField>
+
+<ResponseField name="filename" type="string">
+  The name of the uploaded file.
+</ResponseField>
+
+<ResponseField name="purpose" type="string">
+  The purpose the file was uploaded for.
+</ResponseField>
+
+<ResponseField name="status" type="string">
+  Processing status of the file. Values: `uploaded`, `processed`, `error`.
+</ResponseField>
+
+<CodeGroup>
+
+```bash cURL
+curl https://your-gateway.example.com/v1/files \
+  -X POST \
+  -H "x-portkey-api-key: YOUR_API_KEY" \
+  -H "x-portkey-provider: openai" \
+  -F "purpose=fine-tune" \
+  -F "file=@training_data.jsonl"
+```
+
+```python Python
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="https://your-gateway.example.com/v1",
+    api_key="YOUR_API_KEY",
+    default_headers={
+        "x-portkey-provider": "openai",
+    },
+)
+
+with open("training_data.jsonl", "rb") as f:
+    response = client.files.create(
+        file=f,
+        purpose="fine-tune",
+    )
+
+print(response.id)
+```
+
+```javascript JavaScript
+import OpenAI, { toFile } from "openai";
+import { createReadStream } from "fs";
+
+const client = new OpenAI({
+  baseURL: "https://your-gateway.example.com/v1",
+  apiKey: "YOUR_API_KEY",
+  defaultHeaders: {
+    "x-portkey-provider": "openai",
+  },
+});
+
+const response = await client.files.create({
+  file: await toFile(createReadStream("training_data.jsonl"), "training_data.jsonl"),
+  purpose: "fine-tune",
+});
+
+console.log(response.id);
+```
+
+</CodeGroup>
+
+---
+
+## List files
+
+`GET /v1/files`
+
+Returns a list of files that have been uploaded to the configured provider.
+
+### Request
+
+<ParamField header="x-portkey-provider" type="string" required>
+  The provider to route the request to.
+</ParamField>
+
+<ParamField header="x-portkey-api-key" type="string" required>
+  Your Portkey API key or provider API key.
+</ParamField>
+
+<ParamField query="purpose" type="string">
+  Filter files by purpose. For example, `fine-tune` or `batch`.
+</ParamField>
+
+### Response
+
+<ResponseField name="object" type="string">
+  Always `list`.
+</ResponseField>
+
+<ResponseField name="data" type="array">
+  Array of file objects. Each object has the same shape as the Upload a file response.
+</ResponseField>
+
+<CodeGroup>
+
+```bash cURL
+curl https://your-gateway.example.com/v1/files \
+  -H "x-portkey-api-key: YOUR_API_KEY" \
+  -H "x-portkey-provider: openai"
+```
+
+```python Python
+files = client.files.list()
+for file in files.data:
+    print(file.id, file.filename, file.purpose)
+```
+
+```javascript JavaScript
+const files = await client.files.list();
+for (const file of files.data) {
+  console.log(file.id, file.filename, file.purpose);
+}
+```
+
+</CodeGroup>
+
+---
+
+## Retrieve file metadata
+
+`GET /v1/files/:id`
+
+Returns metadata for a specific file by its ID.
+
+### Request
+
+<ParamField path="id" type="string" required>
+  The ID of the file to retrieve.
+</ParamField>
+
+<ParamField header="x-portkey-provider" type="string" required>
+  The provider to route the request to.
+</ParamField>
+
+<ParamField header="x-portkey-api-key" type="string" required>
+  Your Portkey API key or provider API key.
+</ParamField>
+
+### Response
+
+Returns a single file object with the same fields as the Upload a file response.
+
+<CodeGroup>
+
+```bash cURL
+curl https://your-gateway.example.com/v1/files/file-abc123 \
+  -H "x-portkey-api-key: YOUR_API_KEY" \
+  -H "x-portkey-provider: openai"
+```
+
+```python Python
+file = client.files.retrieve("file-abc123")
+print(file.id, file.status)
+```
+
+```javascript JavaScript
+const file = await client.files.retrieve("file-abc123");
+console.log(file.id, file.status);
+```
+
+</CodeGroup>
+
+---
+
+## Retrieve file content
+
+`GET /v1/files/:id/content`
+
+Returns the raw content of a file.
+
+### Request
+
+<ParamField path="id" type="string" required>
+  The ID of the file whose content to retrieve.
+</ParamField>
+
+<ParamField header="x-portkey-provider" type="string" required>
+  The provider to route the request to.
+</ParamField>
+
+<ParamField header="x-portkey-api-key" type="string" required>
+  Your Portkey API key or provider API key.
+</ParamField>
+
+### Response
+
+Returns the raw file bytes with the content type set by the provider.
+
+<CodeGroup>
+
+```bash cURL
+curl https://your-gateway.example.com/v1/files/file-abc123/content \
+  -H "x-portkey-api-key: YOUR_API_KEY" \
+  -H "x-portkey-provider: openai" \
+  --output file_content.jsonl
+```
+
+```python Python
+content = client.files.content("file-abc123")
+with open("output.jsonl", "wb") as f:
+    f.write(content.read())
+```
+
+```javascript JavaScript
+const content = await client.files.content("file-abc123");
+const buffer = await content.arrayBuffer();
+```
+
+</CodeGroup>
+
+---
+
+## Delete a file
+
+`DELETE /v1/files/:id`
+
+Deletes a file from the provider. The file must not be in use by any active fine-tuning jobs or batches.
+
+<Warning>
+  Deletion is permanent. Ensure the file is no longer referenced by any active jobs before deleting it.
+</Warning>
+
+### Request
+
+<ParamField path="id" type="string" required>
+  The ID of the file to delete.
+</ParamField>
+
+<ParamField header="x-portkey-provider" type="string" required>
+  The provider to route the request to.
+</ParamField>
+
+<ParamField header="x-portkey-api-key" type="string" required>
+  Your Portkey API key or provider API key.
+</ParamField>
+
+### Response
+
+<ResponseField name="id" type="string">
+  The ID of the deleted file.
+</ResponseField>
+
+<ResponseField name="object" type="string">
+  Always `file`.
+</ResponseField>
+
+<ResponseField name="deleted" type="boolean">
+  `true` if the file was successfully deleted.
+</ResponseField>
+
+<CodeGroup>
+
+```bash cURL
+curl https://your-gateway.example.com/v1/files/file-abc123 \
+  -X DELETE \
+  -H "x-portkey-api-key: YOUR_API_KEY" \
+  -H "x-portkey-provider: openai"
+```
+
+```python Python
+result = client.files.delete("file-abc123")
+print(result.deleted)
+```
+
+```javascript JavaScript
+const result = await client.files.delete("file-abc123");
+console.log(result.deleted);
+```
+
+</CodeGroup>

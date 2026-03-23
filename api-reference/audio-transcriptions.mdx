@@ -1,0 +1,179 @@
+---
+title: "Audio transcriptions"
+description: "Transcribe audio to text using speech-to-text models."
+---
+
+## POST /v1/audio/transcriptions
+
+Transcribes an audio file into text. The request body must be sent as `multipart/form-data` with the audio file included as a form field. This endpoint maps to the `createTranscription` operation and is compatible with the OpenAI Whisper API.
+
+## Request headers
+
+<ParamField header="x-portkey-provider" type="string">
+  The provider to route the request to (e.g. `openai`). Required when not using a config.
+</ParamField>
+
+<ParamField header="x-portkey-api-key" type="string">
+  Your provider API key.
+</ParamField>
+
+<ParamField header="x-portkey-config" type="string">
+  A JSON config object or config ID that defines routing, fallbacks, retries, and more.
+</ParamField>
+
+<ParamField header="x-portkey-virtual-key" type="string">
+  A virtual key ID from Portkey Cloud.
+</ParamField>
+
+## Request body
+
+<Note>
+  This endpoint accepts `multipart/form-data`. The audio file must be uploaded as a file field named `file`.
+</Note>
+
+<ParamField body="file" type="file" required>
+  The audio file to transcribe. Supported formats: `flac`, `mp3`, `mp4`, `mpeg`, `mpga`, `m4a`, `ogg`, `wav`, `webm`. Maximum file size is 25 MB.
+</ParamField>
+
+<ParamField body="model" type="string" required>
+  The speech-to-text model to use (e.g. `whisper-1`, `gpt-4o-transcribe`).
+</ParamField>
+
+<ParamField body="language" type="string">
+  The language of the audio, in [ISO-639-1](https://en.wikipedia.org/wiki/List_of_ISO_639-1_codes) format (e.g. `en`, `fr`, `de`). Providing the language improves accuracy and latency.
+</ParamField>
+
+<ParamField body="prompt" type="string">
+  Optional text to guide the model's style or provide context. The prompt should match the language of the audio.
+</ParamField>
+
+<ParamField body="response_format" type="string" default="json">
+  The format of the transcription output. One of `json`, `text`, `srt`, `verbose_json`, or `vtt`.
+</ParamField>
+
+<ParamField body="temperature" type="number" default="0">
+  Sampling temperature between `0` and `1`. Higher values produce more varied output. Set to `0` for deterministic transcription.
+</ParamField>
+
+<ParamField body="timestamp_granularities" type="string[]">
+  The granularity of timestamps to include. Requires `response_format` to be `verbose_json`. Accepts `word` and/or `segment`.
+</ParamField>
+
+## Response
+
+The response format depends on the `response_format` parameter.
+
+**`json` (default)**
+
+<ResponseField name="text" type="string">
+  The transcribed text.
+</ResponseField>
+
+**`verbose_json`**
+
+<ResponseField name="text" type="string">
+  The full transcribed text.
+</ResponseField>
+
+<ResponseField name="language" type="string">
+  The detected language of the audio.
+</ResponseField>
+
+<ResponseField name="duration" type="number">
+  The duration of the audio file in seconds.
+</ResponseField>
+
+<ResponseField name="segments" type="object[]">
+  Segment-level transcription data, present when `timestamp_granularities` includes `segment`.
+
+  <Expandable title="properties">
+    <ResponseField name="id" type="integer">
+      Segment index.
+    </ResponseField>
+    <ResponseField name="start" type="number">
+      Start time of the segment in seconds.
+    </ResponseField>
+    <ResponseField name="end" type="number">
+      End time of the segment in seconds.
+    </ResponseField>
+    <ResponseField name="text" type="string">
+      The transcribed text for this segment.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="words" type="object[]">
+  Word-level transcription data, present when `timestamp_granularities` includes `word`.
+
+  <Expandable title="properties">
+    <ResponseField name="word" type="string">
+      The transcribed word.
+    </ResponseField>
+    <ResponseField name="start" type="number">
+      Start time in seconds.
+    </ResponseField>
+    <ResponseField name="end" type="number">
+      End time in seconds.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+**`text`, `srt`, `vtt`** — Plain-text or subtitle format strings.
+
+## Code examples
+
+<CodeGroup>
+
+```bash curl
+curl https://your-gateway-url/v1/audio/transcriptions \
+  -H "x-portkey-provider: openai" \
+  -H "x-portkey-api-key: $OPENAI_API_KEY" \
+  -F "model=whisper-1" \
+  -F "file=@audio.mp3" \
+  -F "language=en" \
+  -F "response_format=json"
+```
+
+```python Python
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="https://your-gateway-url/v1",
+    api_key="$OPENAI_API_KEY",
+    default_headers={
+        "x-portkey-provider": "openai",
+    },
+)
+
+with open("audio.mp3", "rb") as audio_file:
+    response = client.audio.transcriptions.create(
+        model="whisper-1",
+        file=audio_file,
+        language="en",
+    )
+
+print(response.text)
+```
+
+```javascript JavaScript
+import OpenAI from "openai";
+import fs from "fs";
+
+const client = new OpenAI({
+  baseURL: "https://your-gateway-url/v1",
+  apiKey: process.env.OPENAI_API_KEY,
+  defaultHeaders: {
+    "x-portkey-provider": "openai",
+  },
+});
+
+const response = await client.audio.transcriptions.create({
+  model: "whisper-1",
+  file: fs.createReadStream("audio.mp3"),
+  language: "en",
+});
+
+console.log(response.text);
+```
+
+</CodeGroup>

@@ -1,0 +1,214 @@
+---
+title: "Conditional routing"
+description: "Route requests to different providers or models based on request metadata, user segments, or any runtime context."
+---
+
+Conditional routing lets you direct traffic to different targets based on attributes of the incoming request — such as user tier, customer ID, model preference, or any key-value pair you attach to the request as metadata.
+
+## How it works
+
+Set `strategy.mode` to `"conditional"` and define a list of `conditions`. Each condition specifies:
+
+- `query` — a filter object evaluated against the request context
+- `then` — the name of the target to route to when the condition matches
+
+The gateway evaluates conditions in order and routes to the first matching target. If no condition matches, the `default` target is used.
+
+```json
+{
+  "strategy": {
+    "mode": "conditional",
+    "conditions": [
+      {
+        "query": {"metadata.user_tier": "premium"},
+        "then": "premium-target"
+      },
+      {
+        "query": {"metadata.user_tier": "free"},
+        "then": "free-target"
+      }
+    ],
+    "default": "free-target"
+  },
+  "targets": [
+    {
+      "name": "premium-target",
+      "provider": "openai",
+      "override_params": {"model": "gpt-4o"}
+    },
+    {
+      "name": "free-target",
+      "provider": "openai",
+      "override_params": {"model": "gpt-4o-mini"}
+    }
+  ]
+}
+```
+
+## Passing metadata
+
+Attach metadata to your request using the `x-portkey-metadata` header. Metadata values must be strings.
+
+<CodeGroup>
+
+```python python
+from portkey_ai import Portkey
+
+client = Portkey(
+    provider="openai",
+    Authorization="sk-...",
+    config=routing_config
+)
+
+# Premium user — routed to GPT-4o
+client.chat.completions.create(
+    model="gpt-4o-mini",  # overridden by the target's override_params
+    messages=[{"role": "user", "content": "Explain quantum entanglement"}],
+    extra_headers={"x-portkey-metadata": '{"user_tier": "premium"}'}
+)
+
+# Free user — routed to GPT-4o mini
+client.chat.completions.create(
+    model="gpt-4o-mini",
+    messages=[{"role": "user", "content": "Explain quantum entanglement"}],
+    extra_headers={"x-portkey-metadata": '{"user_tier": "free"}'}
+)
+```
+
+```javascript javascript
+import Portkey from "portkey-ai";
+
+const client = new Portkey({
+  provider: "openai",
+  Authorization: "sk-...",
+  config: routingConfig
+});
+
+// Premium user — routed to GPT-4o
+await client.chat.completions.create({
+  model: "gpt-4o-mini",
+  messages: [{ role: "user", content: "Explain quantum entanglement" }],
+  headers: { "x-portkey-metadata": JSON.stringify({ user_tier: "premium" }) }
+});
+```
+
+```bash curl
+curl http://localhost:8787/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -H "x-portkey-config: <base64-encoded-config>" \
+  -H 'x-portkey-metadata: {"user_tier": "premium"}' \
+  -d '{"model": "gpt-4o-mini", "messages": [{"role": "user", "content": "Hello"}]}'
+```
+
+</CodeGroup>
+
+## Query operators
+
+Condition queries support MongoDB-style comparison and logical operators:
+
+| Operator | Meaning |
+|---|---|
+| `$eq` | Equal (default when no operator is given) |
+| `$ne` | Not equal |
+| `$gt` | Greater than |
+| `$gte` | Greater than or equal |
+| `$lt` | Less than |
+| `$lte` | Less than or equal |
+| `$in` | Value is in array |
+| `$nin` | Value is not in array |
+| `$regex` | Matches regular expression |
+| `$and` | All sub-conditions must match |
+| `$or` | At least one sub-condition must match |
+
+### Numeric comparison example
+
+Route high-token-budget requests to a more capable model:
+
+```json
+{
+  "strategy": {
+    "mode": "conditional",
+    "conditions": [
+      {
+        "query": {"metadata.max_tokens": {"$gte": "4000"}},
+        "then": "large-context"
+      }
+    ],
+    "default": "standard"
+  },
+  "targets": [
+    {
+      "name": "large-context",
+      "provider": "anthropic",
+      "override_params": {"model": "claude-3-5-sonnet-20241022"}
+    },
+    {
+      "name": "standard",
+      "provider": "openai",
+      "override_params": {"model": "gpt-4o-mini"}
+    }
+  ]
+}
+```
+
+### Multi-condition with `$or`
+
+```json
+{
+  "query": {
+    "$or": [
+      {"metadata.region": "eu-west"},
+      {"metadata.region": "eu-central"}
+    ]
+  },
+  "then": "eu-provider"
+}
+```
+
+## Routing context keys
+
+Queries can reference two namespaces:
+
+| Key prefix | Description |
+|---|---|
+| `metadata.*` | Values from the `x-portkey-metadata` header |
+| `params.*` | Top-level fields from the request body (e.g. `params.model`) |
+
+<Note>
+  Metadata values are always strings. Use string comparisons for `$gte`, `$lte`, and similar numeric operators — the gateway parses them as floats for comparison.
+</Note>
+
+## Combining with fallbacks
+
+Each named target in a conditional config can itself be a nested config with fallbacks:
+
+```json
+{
+  "strategy": {
+    "mode": "conditional",
+    "conditions": [
+      {"query": {"metadata.user_tier": "premium"}, "then": "premium-with-fallback"}
+    ],
+    "default": "free-target"
+  },
+  "targets": [
+    {
+      "name": "premium-with-fallback",
+      "strategy": {"mode": "fallback"},
+      "targets": [
+        {"provider": "openai", "override_params": {"model": "gpt-4o"}},
+        {"provider": "anthropic", "override_params": {"model": "claude-3-5-sonnet-20241022"}}
+      ]
+    },
+    {
+      "name": "free-target",
+      "provider": "openai",
+      "override_params": {"model": "gpt-4o-mini"}
+    }
+  ]
+}
+```
+
+<Tip>
+  Conditional routing is evaluated before retries and fallbacks. Use it to direct traffic to the right target first, then rely on fallbacks to handle failures within that target.
+</Tip>

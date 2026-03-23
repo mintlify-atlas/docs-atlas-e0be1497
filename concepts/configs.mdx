@@ -1,0 +1,229 @@
+---
+title: "Configs"
+description: "JSON objects that define routing rules, reliability settings, and guardrails for every request through the AI Gateway."
+---
+
+A **Config** is a JSON object you attach to your gateway requests to control how they are handled. Configs let you define provider routing, fallback chains, load balancing weights, retry policies, caching rules, and guardrails — all in one place.
+
+## Passing a config
+
+You can attach a config in two ways: via a request header, or inline in the Portkey client.
+
+### Via the `x-portkey-config` header
+
+Base64-encode your config object and pass it as the `x-portkey-config` header on any request.
+
+<CodeGroup>
+
+```python python
+import base64, json
+from portkey_ai import Portkey
+
+config = {
+  "retry": {"attempts": 3},
+  "strategy": {"mode": "fallback"},
+  "targets": [
+    {"provider": "openai", "api_key": "sk-..."},
+    {"provider": "anthropic", "api_key": "sk-ant-..."}
+  ]
+}
+
+client = Portkey(
+    base_url="http://localhost:8787/v1",
+    default_headers={
+        "x-portkey-config": base64.b64encode(
+            json.dumps(config).encode()
+        ).decode()
+    }
+)
+```
+
+```javascript javascript
+import OpenAI from "openai";
+
+const config = {
+  retry: { attempts: 3 },
+  strategy: { mode: "fallback" },
+  targets: [
+    { provider: "openai", api_key: "sk-..." },
+    { provider: "anthropic", api_key: "sk-ant-..." }
+  ]
+};
+
+const client = new OpenAI({
+  baseURL: "http://localhost:8787/v1",
+  defaultHeaders: {
+    "x-portkey-config": Buffer.from(JSON.stringify(config)).toString("base64")
+  }
+});
+```
+
+```bash curl
+curl http://localhost:8787/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -H "x-portkey-config: $(echo '{"retry":{"attempts":3}}' | base64)" \
+  -d '{"model": "gpt-4o", "messages": [{"role": "user", "content": "Hello"}]}'
+```
+
+</CodeGroup>
+
+### Inline in the Portkey client
+
+Pass the config directly when constructing the client, or use `with_options` to scope it to specific calls.
+
+<CodeGroup>
+
+```python python
+from portkey_ai import Portkey
+
+client = Portkey(
+    provider="openai",
+    Authorization="sk-...",
+    config={
+      "retry": {"attempts": 5},
+      "output_guardrails": [{
+        "default.contains": {"operator": "none", "words": ["Apple"]},
+        "deny": True
+      }]
+    }
+)
+
+# Or scope the config to a specific set of calls
+scoped = client.with_options(config={"retry": {"attempts": 2}})
+scoped.chat.completions.create(
+    model="gpt-4o-mini",
+    messages=[{"role": "user", "content": "Hello"}]
+)
+```
+
+```javascript javascript
+import Portkey from "portkey-ai";
+
+const client = new Portkey({
+  provider: "openai",
+  Authorization: "sk-...",
+  config: {
+    retry: { attempts: 5 }
+  }
+});
+```
+
+</CodeGroup>
+
+## Config schema
+
+A config object supports the following top-level fields:
+
+<ParamField body="strategy" type="object">
+  Controls the routing strategy. See [routing](/concepts/routing), [fallbacks](/concepts/fallbacks), and [load balancing](/concepts/load-balancing).
+
+  - `mode` — `"single"` | `"fallback"` | `"loadbalance"` | `"conditional"`
+  - `on_status_codes` — HTTP status codes that trigger a fallback (fallback mode only)
+  - `conditions` — routing conditions evaluated against request metadata (conditional mode only)
+  - `default` — name of the default target when no condition matches
+</ParamField>
+
+<ParamField body="targets" type="array">
+  List of provider targets to route to. Each target can specify:
+
+  - `provider` — provider name (`"openai"`, `"anthropic"`, `"vertex-ai"`, etc.)
+  - `api_key` / `virtual_key` — authentication credentials
+  - `weight` — routing weight for load balancing (0–1)
+  - `override_params` — model parameters to override for this target
+  - `retry` — per-target retry settings
+  - `cache` — per-target cache settings
+  - `name` — logical name used in conditional routing
+</ParamField>
+
+<ParamField body="retry" type="object">
+  Automatic retry configuration. See [retries](/concepts/retries).
+
+  - `attempts` — maximum retry attempts (up to 5)
+  - `on_status_codes` — status codes that trigger a retry (default: `[429, 500, 502, 503, 504]`)
+</ParamField>
+
+<ParamField body="cache" type="object">
+  Response caching configuration. See [caching](/concepts/caching).
+
+  - `mode` — `"simple"` or `"semantic"`
+  - `max_age` — cache TTL in seconds
+</ParamField>
+
+<ParamField body="output_guardrails" type="array">
+  Guardrail checks applied to LLM responses. Requests that fail a guardrail check with `deny: true` are automatically retried.
+</ParamField>
+
+<ParamField body="input_guardrails" type="array">
+  Guardrail checks applied to incoming requests before they are forwarded to a provider.
+</ParamField>
+
+<ParamField body="custom_host" type="string">
+  Override the base URL used to reach the provider (useful for local proxies or custom deployments).
+</ParamField>
+
+## Example: retries + guardrails
+
+This config retries failed requests up to 5 times and denies any response containing the word "Apple":
+
+```python python
+config = {
+  "retry": {"attempts": 5},
+  "output_guardrails": [{
+    "default.contains": {"operator": "none", "words": ["Apple"]},
+    "deny": True
+  }]
+}
+
+client = client.with_options(config=config)
+client.chat.completions.create(
+    model="gpt-4o-mini",
+    messages=[{"role": "user", "content": "Reply randomly with Apple or Bat"}]
+)
+# Always returns "Bat" — guardrail retries until a compliant response is received
+```
+
+## Example: fallback + load balancing combined
+
+```json
+{
+  "strategy": {
+    "mode": "loadbalance"
+  },
+  "targets": [
+    {
+      "strategy": {"mode": "fallback"},
+      "weight": 0.7,
+      "targets": [
+        {"provider": "openai", "override_params": {"model": "gpt-4o"}},
+        {"provider": "azure-openai", "override_params": {"model": "gpt-4o"}}
+      ]
+    },
+    {
+      "provider": "anthropic",
+      "weight": 0.3,
+      "override_params": {"model": "claude-3-5-sonnet-20241022"}
+    }
+  ]
+}
+```
+
+<Tip>
+  Configs are composable — you can nest targets and strategies to build complex multi-provider routing trees.
+</Tip>
+
+## Related concepts
+
+<CardGroup cols={2}>
+  <Card title="Routing" icon="shuffle" href="/concepts/routing">
+    Route requests to different providers based on metadata conditions.
+  </Card>
+  <Card title="Fallbacks" icon="arrow-right-arrow-left" href="/concepts/fallbacks">
+    Automatically switch to a backup provider on failure.
+  </Card>
+  <Card title="Load balancing" icon="scale-balanced" href="/concepts/load-balancing">
+    Distribute traffic across providers and API keys.
+  </Card>
+  <Card title="Retries" icon="rotate-right" href="/concepts/retries">
+    Automatically retry failed requests with exponential backoff.
+  </Card>
+</CardGroup>

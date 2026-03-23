@@ -1,0 +1,151 @@
+---
+title: "Caching"
+description: "Cache LLM responses to reduce latency and cost, with exact-match and semantic similarity modes."
+---
+
+The AI Gateway can cache LLM responses and serve them without making a new provider request. This reduces both cost and latency for repeated or similar queries.
+
+## Cache modes
+
+<Tabs>
+  <Tab title="Simple">
+    **Simple caching** performs exact-match lookups. The cache key is a SHA-256 hash of the serialized request body combined with the target URL. If an identical request has been made before, the cached response is returned immediately.
+
+    ```json
+    {
+      "cache": {
+        "mode": "simple",
+        "max_age": 3600
+      }
+    }
+    ```
+
+    This mode is available in both the open-source gateway and the hosted Portkey service.
+  </Tab>
+  <Tab title="Semantic">
+    **Semantic caching** uses embedding-based similarity to match requests that are semantically equivalent even if the exact text differs. For example, "What is the capital of France?" and "Tell me the capital city of France" would both hit the same cache entry.
+
+    ```json
+    {
+      "cache": {
+        "mode": "semantic",
+        "max_age": 7200
+      }
+    }
+    ```
+
+    <Info>
+      Semantic caching is available on the **hosted Portkey service** and **enterprise deployments** only. It requires a vector store and embedding model to be configured in your deployment.
+    </Info>
+  </Tab>
+</Tabs>
+
+## Configuration
+
+<ParamField body="cache.mode" type="string" required>
+  Cache mode. `"simple"` for exact-match caching, `"semantic"` for embedding-based similarity matching.
+</ParamField>
+
+<ParamField body="cache.max_age" type="number">
+  Cache TTL in seconds. After this duration, the cached entry expires and the next matching request hits the provider. Defaults to 24 hours (86400 seconds) if not set.
+</ParamField>
+
+## Usage
+
+<CodeGroup>
+
+```python python
+from portkey_ai import Portkey
+
+client = Portkey(
+    provider="openai",
+    Authorization="sk-...",
+    config={
+      "cache": {
+        "mode": "simple",
+        "max_age": 3600
+      }
+    }
+)
+
+# First call — hits the provider
+response1 = client.chat.completions.create(
+    model="gpt-4o-mini",
+    messages=[{"role": "user", "content": "What is 2 + 2?"}]
+)
+
+# Second identical call — served from cache
+response2 = client.chat.completions.create(
+    model="gpt-4o-mini",
+    messages=[{"role": "user", "content": "What is 2 + 2?"}]
+)
+```
+
+```javascript javascript
+import Portkey from "portkey-ai";
+
+const client = new Portkey({
+  provider: "openai",
+  Authorization: "sk-...",
+  config: {
+    cache: {
+      mode: "simple",
+      max_age: 3600
+    }
+  }
+});
+```
+
+```bash curl
+curl http://localhost:8787/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -H 'x-portkey-cache: {"mode": "simple", "max_age": 3600}' \
+  -H "Authorization: Bearer sk-..." \
+  -d '{"model": "gpt-4o-mini", "messages": [{"role": "user", "content": "What is 2 + 2?"}]}'
+```
+
+</CodeGroup>
+
+## Cache status headers
+
+Every response includes a `x-portkey-cache-status` header indicating whether the response came from cache:
+
+| Value | Meaning |
+|---|---|
+| `HIT` | Response served from simple cache |
+| `SEMANTIC HIT` | Response served from semantic cache |
+| `MISS` | No cache entry found; response from provider |
+| `SEMANTIC MISS` | Semantic search found no match; response from provider |
+| `REFRESH` | Cache was bypassed due to force-refresh header |
+| `DISABLED` | Caching is not enabled for this request |
+
+## Force-refreshing the cache
+
+To bypass the cache and fetch a fresh response from the provider, include the `x-portkey-cache-force-refresh` header:
+
+```bash
+curl http://localhost:8787/v1/chat/completions \
+  -H "x-portkey-cache-force-refresh: true" \
+  -H "x-portkey-config: <config>" \
+  -d '{"model": "gpt-4o-mini", "messages": [{"role": "user", "content": "Hello"}]}'
+```
+
+## Persistent caching with Redis
+
+By default, the gateway uses an in-memory cache that is lost when the process restarts. To persist the cache across restarts and share it across multiple gateway instances, configure a Redis connection:
+
+```bash
+REDIS_CONNECTION_STRING=redis://localhost:6379
+```
+
+Set this environment variable before starting the gateway. When Redis is available, all `putInCache` and `getFromCache` operations use Redis instead of the in-process store.
+
+<Note>
+  The in-memory cache does not persist across gateway restarts. Use Redis for production deployments where cache durability matters.
+</Note>
+
+## Caching limitations
+
+- Streaming responses are **not** cached. If `stream: true` is set in the request body, caching is skipped for that request.
+- Cache keys include the full request body and the provider URL. Any change to the request — model, messages, parameters — produces a different cache key.
+- The `simple` cache key is a SHA-256 hash of `JSON.stringify(requestBody) + targetURL`.

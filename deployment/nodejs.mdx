@@ -1,0 +1,106 @@
+---
+title: "Node.js"
+description: "Run the Portkey AI Gateway on any Node.js server with a single npx command or by building from source."
+---
+
+## Quick start
+
+Run the gateway directly without cloning anything:
+
+<CodeGroup>
+
+```bash npx
+npx @portkey-ai/gateway
+```
+
+```bash bunx
+bunx @portkey-ai/gateway
+```
+
+</CodeGroup>
+
+The gateway starts and listens on `http://localhost:8787`.
+
+<Tip>
+  Use `bunx` as a drop-in replacement for `npx` if you have [Bun](https://bun.sh) installed. It resolves and runs packages faster.
+</Tip>
+
+## Build from source
+
+Clone the repository and build when you need to customise the gateway or pin a specific version.
+
+<Steps>
+  <Step title="Clone the repository">
+    ```bash
+    git clone https://github.com/portkey-ai/gateway
+    cd gateway
+    ```
+  </Step>
+  <Step title="Install dependencies and build">
+    ```bash
+    npm install
+    npm run build
+    ```
+
+    `npm run build` runs `rollup -c` to produce optimised CommonJS bundles in the `build/` directory.
+  </Step>
+  <Step title="Start the server">
+    ```bash
+    node build/start-server.js
+    ```
+
+    The server listens on port `8787` by default.
+  </Step>
+</Steps>
+
+## Development mode
+
+For local development with live reload:
+
+<CodeGroup>
+
+```bash Node.js dev server
+npm run dev:node
+```
+
+```bash Cloudflare Workers (Wrangler)
+npm run dev
+```
+
+</CodeGroup>
+
+`npm run dev:node` uses `tsx` to run `src/start-server.ts` directly without a build step.
+
+## Production configuration
+
+Place a `conf.json` file in the project root before starting the server. The gateway loads it at startup:
+
+```json conf.json
+{
+  "plugins_enabled": ["default", "portkey"],
+  "credentials": {
+    "portkey": {
+      "apiKey": "your-portkey-api-key"
+    }
+  },
+  "cache": false
+}
+```
+
+For Redis-backed caching, set the `REDIS_CONNECTION_STRING` environment variable before starting the server:
+
+```bash
+REDIS_CONNECTION_STRING=redis://your-redis-host:6379 node build/start-server.js
+```
+
+See the [configuration reference](/deployment/configuration) for all available fields and environment variables.
+
+## Available scripts
+
+| Script | Description |
+|---|---|
+| `npm run dev:node` | Development server with `tsx` (no build step) |
+| `npm run build` | Production build with Rollup |
+| `npm run start:node` | Start production server from `build/` |
+| `npm run test:gateway` | Run gateway tests |
+| `npm run format` | Format code with Prettier |

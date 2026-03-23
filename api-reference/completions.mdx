@@ -1,0 +1,210 @@
+---
+title: "Completions"
+description: "Generate text completions from a prompt using the legacy completions endpoint."
+---
+
+## POST /v1/completions
+
+Generates a text completion for a given prompt string. This is the legacy completions endpoint, distinct from the chat completions endpoint. It is maintained for compatibility with older OpenAI integrations and providers that expose a `complete` endpoint.
+
+<Info>
+  For most use cases, prefer [chat completions](/api-reference/chat-completions). Modern models such as GPT-4o and Claude are optimized for the chat format.
+</Info>
+
+## Request headers
+
+<ParamField header="x-portkey-provider" type="string">
+  The provider to route the request to (e.g. `openai`). Required when not using a config.
+</ParamField>
+
+<ParamField header="x-portkey-api-key" type="string">
+  Your provider API key.
+</ParamField>
+
+<ParamField header="x-portkey-config" type="string">
+  A JSON config object or config ID that defines routing, fallbacks, retries, and more.
+</ParamField>
+
+<ParamField header="x-portkey-virtual-key" type="string">
+  A virtual key ID from Portkey Cloud that maps to a stored provider credential.
+</ParamField>
+
+## Request body
+
+<ParamField body="model" type="string" required>
+  The model to use for completion (e.g. `gpt-3.5-turbo-instruct`).
+</ParamField>
+
+<ParamField body="prompt" type="string | string[]" required>
+  The prompt to generate a completion for. Accepts a string or an array of strings for batched input.
+</ParamField>
+
+<ParamField body="temperature" type="number" default="1">
+  Sampling temperature between `0` and `2`. Higher values produce more varied output.
+</ParamField>
+
+<ParamField body="max_tokens" type="integer" default="100">
+  The maximum number of tokens to generate in the completion.
+</ParamField>
+
+<ParamField body="stream" type="boolean" default="false">
+  When `true`, partial results are streamed as server-sent events and the stream ends with `data: [DONE]`.
+</ParamField>
+
+<ParamField body="top_p" type="number" default="1">
+  Nucleus sampling threshold. Only tokens within the top `top_p` probability mass are considered.
+</ParamField>
+
+<ParamField body="frequency_penalty" type="number" default="0">
+  Number between `-2.0` and `2.0`. Positive values reduce repeated tokens.
+</ParamField>
+
+<ParamField body="presence_penalty" type="number" default="0">
+  Number between `-2.0` and `2.0`. Positive values encourage new topics.
+</ParamField>
+
+<ParamField body="n" type="integer" default="1">
+  The number of completions to generate for each prompt.
+</ParamField>
+
+<ParamField body="stop" type="string | string[]">
+  One or more sequences at which to stop generating. The stop sequence is not included in the output.
+</ParamField>
+
+<ParamField body="logprobs" type="integer">
+  Include the log probabilities of the `logprobs` most likely tokens at each position.
+</ParamField>
+
+<ParamField body="echo" type="boolean" default="false">
+  When `true`, echo the prompt back in the response along with the completion.
+</ParamField>
+
+<ParamField body="best_of" type="integer" default="1">
+  Generate `best_of` completions server-side and return the best. Incurs higher token cost.
+</ParamField>
+
+<ParamField body="logit_bias" type="object">
+  A map of token IDs to bias values from `-100` to `100`. Adjusts the likelihood of specific tokens appearing.
+</ParamField>
+
+<ParamField body="seed" type="integer">
+  A seed for deterministic sampling.
+</ParamField>
+
+<ParamField body="user" type="string">
+  A unique identifier for the end user, used for monitoring.
+</ParamField>
+
+## Response
+
+<ResponseField name="id" type="string">
+  A unique identifier for this completion.
+</ResponseField>
+
+<ResponseField name="object" type="string">
+  Always `text_completion`.
+</ResponseField>
+
+<ResponseField name="created" type="integer">
+  Unix timestamp of when the completion was created.
+</ResponseField>
+
+<ResponseField name="model" type="string">
+  The model used for the completion.
+</ResponseField>
+
+<ResponseField name="choices" type="object[]">
+  An array of completion choices.
+
+  <Expandable title="properties">
+    <ResponseField name="text" type="string">
+      The generated completion text.
+    </ResponseField>
+    <ResponseField name="index" type="integer">
+      The index of this choice.
+    </ResponseField>
+    <ResponseField name="finish_reason" type="string">
+      Why generation stopped. One of `stop`, `length`, or `content_filter`.
+    </ResponseField>
+    <ResponseField name="logprobs" type="object | null">
+      Log probabilities, when requested.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="usage" type="object">
+  Token usage for this request.
+
+  <Expandable title="properties">
+    <ResponseField name="prompt_tokens" type="integer">
+      Number of tokens in the prompt.
+    </ResponseField>
+    <ResponseField name="completion_tokens" type="integer">
+      Number of tokens generated.
+    </ResponseField>
+    <ResponseField name="total_tokens" type="integer">
+      Total tokens consumed.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Code examples
+
+<CodeGroup>
+
+```bash curl
+curl https://your-gateway-url/v1/completions \
+  -H "Content-Type: application/json" \
+  -H "x-portkey-provider: openai" \
+  -H "x-portkey-api-key: $OPENAI_API_KEY" \
+  -d '{
+    "model": "gpt-3.5-turbo-instruct",
+    "prompt": "The Portkey AI Gateway is",
+    "max_tokens": 128,
+    "temperature": 0.7
+  }'
+```
+
+```python Python
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="https://your-gateway-url/v1",
+    api_key="$OPENAI_API_KEY",
+    default_headers={
+        "x-portkey-provider": "openai",
+    },
+)
+
+response = client.completions.create(
+    model="gpt-3.5-turbo-instruct",
+    prompt="The Portkey AI Gateway is",
+    max_tokens=128,
+    temperature=0.7,
+)
+
+print(response.choices[0].text)
+```
+
+```javascript JavaScript
+import OpenAI from "openai";
+
+const client = new OpenAI({
+  baseURL: "https://your-gateway-url/v1",
+  apiKey: process.env.OPENAI_API_KEY,
+  defaultHeaders: {
+    "x-portkey-provider": "openai",
+  },
+});
+
+const response = await client.completions.create({
+  model: "gpt-3.5-turbo-instruct",
+  prompt: "The Portkey AI Gateway is",
+  max_tokens: 128,
+  temperature: 0.7,
+});
+
+console.log(response.choices[0].text);
+```
+
+</CodeGroup>

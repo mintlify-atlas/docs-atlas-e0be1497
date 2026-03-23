@@ -1,0 +1,144 @@
+---
+title: "Load balancing"
+description: "Distribute requests across multiple providers, models, or API keys using weighted load balancing."
+---
+
+Load balancing distributes traffic across multiple targets according to configured weights. This lets you spread load across API keys to stay within rate limits, A/B test providers, or maintain redundancy without hard failover.
+
+## Basic configuration
+
+Set `strategy.mode` to `"loadbalance"` and assign a `weight` to each target. Weights are normalized, so `0.7` and `0.3` work the same as `7` and `3`.
+
+```json
+{
+  "strategy": {"mode": "loadbalance"},
+  "targets": [
+    {"provider": "openai", "weight": 0.7},
+    {"provider": "anthropic", "weight": 0.3}
+  ]
+}
+```
+
+In this example, roughly 70% of requests go to OpenAI and 30% go to Anthropic.
+
+<CodeGroup>
+
+```python python
+from portkey_ai import Portkey
+
+client = Portkey(
+    base_url="http://localhost:8787/v1",
+    config={
+      "strategy": {"mode": "loadbalance"},
+      "targets": [
+        {"provider": "openai", "api_key": "sk-...", "weight": 0.7,
+         "override_params": {"model": "gpt-4o"}},
+        {"provider": "anthropic", "api_key": "sk-ant-...", "weight": 0.3,
+         "override_params": {"model": "claude-3-5-sonnet-20241022"}}
+      ]
+    }
+)
+
+response = client.chat.completions.create(
+    model="gpt-4o",
+    messages=[{"role": "user", "content": "Hello"}]
+)
+```
+
+```javascript javascript
+import Portkey from "portkey-ai";
+
+const client = new Portkey({
+  baseURL: "http://localhost:8787/v1",
+  config: {
+    strategy: { mode: "loadbalance" },
+    targets: [
+      { provider: "openai", apiKey: "sk-...", weight: 0.7,
+        overrideParams: { model: "gpt-4o" } },
+      { provider: "anthropic", apiKey: "sk-ant-...", weight: 0.3,
+        overrideParams: { model: "claude-3-5-sonnet-20241022" } }
+    ]
+  }
+});
+```
+
+</CodeGroup>
+
+## Load balancing across API keys
+
+Distribute requests across multiple API keys for the same provider to stay under per-key rate limits:
+
+```json
+{
+  "strategy": {"mode": "loadbalance"},
+  "targets": [
+    {"provider": "openai", "api_key": "sk-key-1", "weight": 1},
+    {"provider": "openai", "api_key": "sk-key-2", "weight": 1},
+    {"provider": "openai", "api_key": "sk-key-3", "weight": 1}
+  ]
+}
+```
+
+Equal weights result in round-robin-like distribution.
+
+## Load balancing across models
+
+You can also distribute traffic across different models on the same provider:
+
+```json
+{
+  "strategy": {"mode": "loadbalance"},
+  "targets": [
+    {
+      "provider": "openai",
+      "weight": 0.5,
+      "override_params": {"model": "gpt-4o"}
+    },
+    {
+      "provider": "openai",
+      "weight": 0.5,
+      "override_params": {"model": "gpt-4o-mini"}
+    }
+  ]
+}
+```
+
+## Combining load balancing with fallbacks
+
+Nest targets to get both load balancing and automatic failover. Each load-balanced target can itself be a fallback group:
+
+```json
+{
+  "strategy": {"mode": "loadbalance"},
+  "targets": [
+    {
+      "weight": 0.7,
+      "strategy": {"mode": "fallback"},
+      "targets": [
+        {"provider": "openai", "override_params": {"model": "gpt-4o"}},
+        {"provider": "azure-openai", "override_params": {"model": "gpt-4o"}}
+      ]
+    },
+    {
+      "weight": 0.3,
+      "provider": "anthropic",
+      "override_params": {"model": "claude-3-5-sonnet-20241022"}
+    }
+  ]
+}
+```
+
+70% of traffic goes to the OpenAI/Azure fallback group, and 30% goes directly to Anthropic.
+
+## Response headers
+
+The gateway reports which target handled the request:
+
+| Header | Description |
+|---|---|
+| `x-portkey-last-used-option-index` | Zero-based index of the target that was selected |
+| `x-portkey-last-used-option-params` | Parameters of the selected target |
+
+<Note>
+  Weight selection is probabilistic, not strictly proportional per-request. Over a large number of requests, the distribution will converge to the configured weights.
+</Note>

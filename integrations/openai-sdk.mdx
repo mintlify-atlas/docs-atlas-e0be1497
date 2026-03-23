@@ -1,0 +1,267 @@
+---
+title: "OpenAI SDK"
+description: "Use the AI Gateway as a drop-in replacement for the OpenAI SDK in Python and JavaScript."
+---
+
+The Portkey AI Gateway is fully compatible with the OpenAI API surface. You can point any OpenAI SDK client at the gateway URL and it will route your requests through the gateway without any other code changes.
+
+This works for both the official OpenAI SDKs and the Portkey-native SDK (`portkey-ai`), which adds convenience helpers for headers and configs.
+
+## Installation
+
+<Steps>
+  <Step title="Start the gateway">
+    Run the gateway locally or use Portkey Cloud.
+
+    <Tabs>
+      <Tab title="Local (npx)">
+        ```bash
+        npx @portkey-ai/gateway
+        ```
+
+        The gateway listens at `http://localhost:8787/v1`.
+      </Tab>
+      <Tab title="Portkey Cloud">
+        Sign up at [app.portkey.ai](https://app.portkey.ai) and copy your API key. The hosted gateway URL is `https://api.portkey.ai/v1`.
+      </Tab>
+    </Tabs>
+  </Step>
+
+  <Step title="Install the SDK">
+    <Tabs>
+      <Tab title="portkey-ai (Python)">
+        ```bash
+        pip install portkey-ai
+        ```
+      </Tab>
+      <Tab title="openai (Python)">
+        ```bash
+        pip install openai
+        ```
+      </Tab>
+      <Tab title="openai (JavaScript)">
+        ```bash
+        npm install openai
+        ```
+      </Tab>
+    </Tabs>
+  </Step>
+</Steps>
+
+## Basic setup
+
+<CodeGroup>
+
+```python portkey-ai SDK
+from portkey_ai import Portkey
+
+client = Portkey(
+    provider="openai",
+    Authorization="sk-***"  # your provider API key
+)
+
+response = client.chat.completions.create(
+    messages=[{"role": "user", "content": "Hello!"}],
+    model="gpt-4o-mini"
+)
+
+print(response.choices[0].message.content)
+```
+
+```python OpenAI SDK (local gateway)
+from openai import OpenAI
+
+client = OpenAI(
+    api_key="sk-***",
+    base_url="http://localhost:8787/v1"
+)
+
+response = client.chat.completions.create(
+    messages=[{"role": "user", "content": "Hello!"}],
+    model="gpt-4o-mini"
+)
+
+print(response.choices[0].message.content)
+```
+
+```javascript OpenAI SDK (JavaScript)
+import OpenAI from 'openai';
+
+const client = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+  baseURL: 'http://localhost:8787/v1',
+});
+
+const response = await client.chat.completions.create({
+  messages: [{ role: 'user', content: 'Hello!' }],
+  model: 'gpt-4o-mini',
+});
+
+console.log(response.choices[0].message.content);
+```
+
+</CodeGroup>
+
+<Note>
+  When using the local gateway, you pass your provider API key directly to the SDK. When using Portkey Cloud, set a Portkey API key and use virtual keys to manage your provider credentials centrally.
+</Note>
+
+## Attaching a config for routing and guardrails
+
+Configs let you define routing rules, retries, fallbacks, and guardrails as a JSON object. Attach a config to the client to apply it to every request.
+
+<CodeGroup>
+
+```python portkey-ai SDK
+from portkey_ai import Portkey
+
+client = Portkey(
+    provider="openai",
+    Authorization="sk-***"
+)
+
+# Define routing and guardrail rules
+config = {
+    "retry": {"attempts": 5},
+    "output_guardrails": [{
+        "default.contains": {"operator": "none", "words": ["restricted"]},
+        "deny": True
+    }]
+}
+
+# Attach the config to the client
+client = client.with_options(config=config)
+
+response = client.chat.completions.create(
+    model="gpt-4o-mini",
+    messages=[{"role": "user", "content": "What is the capital of France?"}]
+)
+```
+
+```python OpenAI SDK with headers (local gateway)
+from openai import OpenAI
+import json
+
+client = OpenAI(
+    api_key="sk-***",
+    base_url="http://localhost:8787/v1"
+)
+
+config = {
+    "retry": {"attempts": 3},
+    "cache": {"mode": "simple"}
+}
+
+response = client.chat.completions.create(
+    messages=[{"role": "user", "content": "Hello!"}],
+    model="gpt-4o-mini",
+    extra_headers={
+        "x-portkey-config": json.dumps(config)
+    }
+)
+```
+
+```javascript OpenAI SDK with headers (JavaScript)
+import OpenAI from 'openai';
+
+const client = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+  baseURL: 'http://localhost:8787/v1',
+});
+
+const config = {
+  retry: { attempts: 3 },
+  cache: { mode: 'simple' },
+};
+
+const response = await client.chat.completions.create({
+  messages: [{ role: 'user', content: 'Hello!' }],
+  model: 'gpt-4o-mini',
+}, {
+  headers: {
+    'x-portkey-config': JSON.stringify(config),
+  },
+});
+```
+
+</CodeGroup>
+
+## Using Portkey Cloud (hosted gateway)
+
+When using the hosted gateway at `https://api.portkey.ai/v1`, authenticate with a Portkey API key and reference your provider credentials through virtual keys.
+
+<CodeGroup>
+
+```python portkey-ai SDK
+from portkey_ai import Portkey
+
+client = Portkey(
+    api_key="YOUR_PORTKEY_API_KEY",     # Portkey account key
+    virtual_key="YOUR_VIRTUAL_KEY"       # saved provider credential
+)
+
+response = client.chat.completions.create(
+    messages=[{"role": "user", "content": "Hello!"}],
+    model="gpt-4o-mini"
+)
+```
+
+```python OpenAI SDK + Portkey Cloud
+from openai import OpenAI
+from portkey_ai import createHeaders, PORTKEY_GATEWAY_URL
+
+client = OpenAI(
+    api_key="dummy",  # not used — Portkey handles auth
+    base_url=PORTKEY_GATEWAY_URL
+)
+
+response = client.chat.completions.create(
+    messages=[{"role": "user", "content": "Hello!"}],
+    model="gpt-4o-mini",
+    extra_headers=createHeaders(
+        api_key="YOUR_PORTKEY_API_KEY",
+        virtual_key="YOUR_VIRTUAL_KEY"
+    )
+)
+```
+
+</CodeGroup>
+
+## Real-world use case: fallback between providers
+
+Route to Anthropic Claude if OpenAI is unavailable, with automatic retries.
+
+```python
+from portkey_ai import Portkey
+
+client = Portkey(
+    api_key="YOUR_PORTKEY_API_KEY"
+)
+
+fallback_config = {
+    "strategy": {"mode": "fallback"},
+    "targets": [
+        {
+            "virtual_key": "YOUR_OPENAI_VIRTUAL_KEY",
+            "override_params": {"model": "gpt-4o-mini"}
+        },
+        {
+            "virtual_key": "YOUR_ANTHROPIC_VIRTUAL_KEY",
+            "override_params": {"model": "claude-3-haiku-20240307"}
+        }
+    ]
+}
+
+client = client.with_options(config=fallback_config)
+
+response = client.chat.completions.create(
+    messages=[{"role": "user", "content": "Summarize the benefits of fallback routing."}],
+    model="gpt-4o-mini"  # overridden per target
+)
+
+print(response.choices[0].message.content)
+```
+
+<Tip>
+  Store your config as a saved config in the Portkey dashboard and reference it by ID with `config="cfg_xxxx"` to keep your application code clean.
+</Tip>

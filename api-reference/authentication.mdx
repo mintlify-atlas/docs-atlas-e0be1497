@@ -1,0 +1,146 @@
+---
+title: "Authentication"
+description: "How to authenticate requests to the Portkey AI Gateway, including provider API keys and the Portkey hosted service."
+---
+
+The gateway itself does not require authentication by default when self-hosted. Authentication is handled at the **provider level** — you pass the target provider's credentials with each request.
+
+For the **Portkey hosted service**, you additionally need a Portkey API key.
+
+## Provider authentication
+
+Pass the provider's API key using the standard `Authorization` header, paired with the `x-portkey-provider` header to tell the gateway which provider to route to.
+
+```http
+POST /v1/chat/completions HTTP/1.1
+Host: localhost:8787
+Authorization: Bearer <PROVIDER_API_KEY>
+x-portkey-provider: openai
+Content-Type: application/json
+```
+
+The value of `Authorization` is forwarded to the target provider as-is.
+
+## Portkey hosted service
+
+When using the [Portkey Cloud](https://portkey.ai), pass your Portkey API key using the `x-portkey-api-key` header instead of managing provider credentials directly. Portkey's virtual key system handles credential management on the backend.
+
+```http
+POST /v1/chat/completions HTTP/1.1
+Host: api.portkey.ai
+x-portkey-api-key: <PORTKEY_API_KEY>
+x-portkey-provider: openai
+Content-Type: application/json
+```
+
+<Info>
+  Virtual keys let you store provider API keys in Portkey's secure vault and reference them by name. See the Portkey documentation for virtual key setup.
+</Info>
+
+## Examples
+
+<CodeGroup>
+
+```bash cURL — OpenAI via local gateway
+curl http://localhost:8787/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $OPENAI_API_KEY" \
+  -H "x-portkey-provider: openai" \
+  -d '{
+    "model": "gpt-4o-mini",
+    "messages": [{"role": "user", "content": "Hello"}]
+  }'
+```
+
+```bash cURL — Anthropic via local gateway
+curl http://localhost:8787/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $ANTHROPIC_API_KEY" \
+  -H "x-portkey-provider: anthropic" \
+  -d '{
+    "model": "claude-3-5-sonnet-20241022",
+    "messages": [{"role": "user", "content": "Hello"}],
+    "max_tokens": 1024
+  }'
+```
+
+```bash cURL — Portkey hosted service
+curl https://api.portkey.ai/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -H "x-portkey-api-key: $PORTKEY_API_KEY" \
+  -H "x-portkey-provider: openai" \
+  -d '{
+    "model": "gpt-4o-mini",
+    "messages": [{"role": "user", "content": "Hello"}]
+  }'
+```
+
+```python Python — OpenAI SDK
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="http://localhost:8787/v1",
+    api_key="placeholder",  # required by the SDK, not used by gateway
+    default_headers={
+        "x-portkey-provider": "openai",
+        "Authorization": f"Bearer {OPENAI_API_KEY}",
+    },
+)
+
+response = client.chat.completions.create(
+    model="gpt-4o-mini",
+    messages=[{"role": "user", "content": "Hello"}],
+)
+```
+
+```python Python — portkey-ai SDK
+from portkey_ai import Portkey
+
+client = Portkey(
+    provider="openai",
+    Authorization=f"Bearer {OPENAI_API_KEY}",
+)
+
+response = client.chat.completions.create(
+    model="gpt-4o-mini",
+    messages=[{"role": "user", "content": "Hello"}],
+)
+```
+
+</CodeGroup>
+
+## Config-based authentication
+
+When using the `x-portkey-config` header, provider credentials can be embedded directly in the config object instead of passed via `Authorization`.
+
+```bash
+curl http://localhost:8787/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -H 'x-portkey-config: {"provider":"openai","api_key":"sk-..."}' \
+  -d '{
+    "model": "gpt-4o-mini",
+    "messages": [{"role": "user", "content": "Hello"}]
+  }'
+```
+
+<Warning>
+  Avoid embedding API keys directly in request headers or client-side code in production. Use environment variables or Portkey's virtual key system.
+</Warning>
+
+## AWS Bedrock authentication
+
+For AWS Bedrock, pass AWS credentials via dedicated headers instead of `Authorization`:
+
+```bash
+curl http://localhost:8787/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -H "x-portkey-provider: bedrock" \
+  -H "x-portkey-aws-access-key-id: $AWS_ACCESS_KEY_ID" \
+  -H "x-portkey-aws-secret-access-key: $AWS_SECRET_ACCESS_KEY" \
+  -H "x-portkey-aws-region: us-east-1" \
+  -d '{
+    "model": "anthropic.claude-3-5-sonnet-20241022-v2:0",
+    "messages": [{"role": "user", "content": "Hello"}],
+    "max_tokens": 1024
+  }'
+```

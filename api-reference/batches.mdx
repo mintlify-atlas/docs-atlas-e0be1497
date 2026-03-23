@@ -1,0 +1,348 @@
+---
+title: "Batches"
+description: "Create and manage batch processing jobs to run large volumes of API requests asynchronously."
+---
+
+The Batches API lets you submit a collection of requests to be processed asynchronously. This is useful for large workloads where you want to avoid rate limits and reduce cost. Portkey proxies batch requests to the configured provider.
+
+<Note>
+  Batch processing is provider-dependent. Check your provider's documentation for supported endpoints and file formats.
+</Note>
+
+## Create a batch
+
+`POST /v1/batches`
+
+Creates a new batch job from a previously uploaded `.jsonl` file.
+
+### Request
+
+<ParamField header="x-portkey-provider" type="string" required>
+  The provider to route the request to (e.g. `openai`).
+</ParamField>
+
+<ParamField header="x-portkey-api-key" type="string" required>
+  Your Portkey API key or provider API key.
+</ParamField>
+
+<ParamField body="input_file_id" type="string" required>
+  The ID of the uploaded file containing the batch requests. Use `POST /v1/files` to upload this file with `purpose=batch`.
+</ParamField>
+
+<ParamField body="endpoint" type="string" required>
+  The API endpoint to run the batch against. For example, `/v1/chat/completions`.
+</ParamField>
+
+<ParamField body="completion_window" type="string" required>
+  The time window for completion. Currently `24h` is the most commonly supported value.
+</ParamField>
+
+<ParamField body="metadata" type="object">
+  Optional key-value metadata to attach to the batch object.
+</ParamField>
+
+### Response
+
+<ResponseField name="id" type="string">
+  Unique identifier for the batch.
+</ResponseField>
+
+<ResponseField name="object" type="string">
+  Always `batch`.
+</ResponseField>
+
+<ResponseField name="endpoint" type="string">
+  The API endpoint the batch runs against.
+</ResponseField>
+
+<ResponseField name="status" type="string">
+  Current status of the batch. Values: `validating`, `in_progress`, `completed`, `failed`, `cancelled`.
+</ResponseField>
+
+<ResponseField name="input_file_id" type="string">
+  The ID of the input file.
+</ResponseField>
+
+<ResponseField name="output_file_id" type="string">
+  The ID of the output file once the batch has completed.
+</ResponseField>
+
+<ResponseField name="created_at" type="number">
+  Unix timestamp when the batch was created.
+</ResponseField>
+
+<ResponseField name="completed_at" type="number">
+  Unix timestamp when the batch completed, or `null` if still in progress.
+</ResponseField>
+
+<ResponseField name="request_counts" type="object">
+  <Expandable title="properties">
+    <ResponseField name="total" type="number">
+      Total number of requests in the batch.
+    </ResponseField>
+    <ResponseField name="completed" type="number">
+      Number of requests completed.
+    </ResponseField>
+    <ResponseField name="failed" type="number">
+      Number of requests that failed.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<CodeGroup>
+
+```bash cURL
+curl https://your-gateway.example.com/v1/batches \
+  -X POST \
+  -H "Content-Type: application/json" \
+  -H "x-portkey-api-key: YOUR_API_KEY" \
+  -H "x-portkey-provider: openai" \
+  -d '{
+    "input_file_id": "file-abc123",
+    "endpoint": "/v1/chat/completions",
+    "completion_window": "24h"
+  }'
+```
+
+```python Python
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="https://your-gateway.example.com/v1",
+    api_key="YOUR_API_KEY",
+    default_headers={
+        "x-portkey-provider": "openai",
+    },
+)
+
+batch = client.batches.create(
+    input_file_id="file-abc123",
+    endpoint="/v1/chat/completions",
+    completion_window="24h",
+)
+
+print(batch.id, batch.status)
+```
+
+```javascript JavaScript
+import OpenAI from "openai";
+
+const client = new OpenAI({
+  baseURL: "https://your-gateway.example.com/v1",
+  apiKey: "YOUR_API_KEY",
+  defaultHeaders: {
+    "x-portkey-provider": "openai",
+  },
+});
+
+const batch = await client.batches.create({
+  input_file_id: "file-abc123",
+  endpoint: "/v1/chat/completions",
+  completion_window: "24h",
+});
+
+console.log(batch.id, batch.status);
+```
+
+</CodeGroup>
+
+---
+
+## List batches
+
+`GET /v1/batches`
+
+Returns a list of batch jobs for the configured provider.
+
+### Request
+
+<ParamField header="x-portkey-provider" type="string" required>
+  The provider to route the request to.
+</ParamField>
+
+<ParamField header="x-portkey-api-key" type="string" required>
+  Your Portkey API key or provider API key.
+</ParamField>
+
+<ParamField query="limit" type="number" default="20">
+  Maximum number of batches to return.
+</ParamField>
+
+<ParamField query="after" type="string">
+  Cursor for pagination. Pass the `id` of the last batch from the previous page.
+</ParamField>
+
+### Response
+
+<ResponseField name="object" type="string">
+  Always `list`.
+</ResponseField>
+
+<ResponseField name="data" type="array">
+  Array of batch objects.
+</ResponseField>
+
+<ResponseField name="has_more" type="boolean">
+  Whether additional batches are available beyond this page.
+</ResponseField>
+
+<CodeGroup>
+
+```bash cURL
+curl https://your-gateway.example.com/v1/batches \
+  -H "x-portkey-api-key: YOUR_API_KEY" \
+  -H "x-portkey-provider: openai"
+```
+
+```python Python
+batches = client.batches.list()
+for batch in batches.data:
+    print(batch.id, batch.status)
+```
+
+```javascript JavaScript
+const batches = await client.batches.list();
+for (const batch of batches.data) {
+  console.log(batch.id, batch.status);
+}
+```
+
+</CodeGroup>
+
+---
+
+## Retrieve a batch
+
+`GET /v1/batches/:id`
+
+Retrieves a single batch job by its ID. Use this to poll the status of an in-progress batch.
+
+### Request
+
+<ParamField path="id" type="string" required>
+  The ID of the batch to retrieve.
+</ParamField>
+
+<ParamField header="x-portkey-provider" type="string" required>
+  The provider to route the request to.
+</ParamField>
+
+<ParamField header="x-portkey-api-key" type="string" required>
+  Your Portkey API key or provider API key.
+</ParamField>
+
+### Response
+
+Returns a single batch object. See [Create a batch](#create-a-batch) for the full field list.
+
+<CodeGroup>
+
+```bash cURL
+curl https://your-gateway.example.com/v1/batches/batch-xyz789 \
+  -H "x-portkey-api-key: YOUR_API_KEY" \
+  -H "x-portkey-provider: openai"
+```
+
+```python Python
+batch = client.batches.retrieve("batch-xyz789")
+print(batch.status)
+```
+
+```javascript JavaScript
+const batch = await client.batches.retrieve("batch-xyz789");
+console.log(batch.status);
+```
+
+</CodeGroup>
+
+---
+
+## Get batch output
+
+`GET /v1/batches/*/output`
+
+Retrieves the output file content for a completed batch. The wildcard path segment accepts the batch ID.
+
+<Note>
+  The batch must have `status: completed` before output is available. Retrieve the batch first to check its `output_file_id`, then use `GET /v1/files/:id/content` to download the output directly.
+</Note>
+
+### Request
+
+<ParamField path="*" type="string" required>
+  The batch ID. For example, `/v1/batches/batch-xyz789/output`.
+</ParamField>
+
+<ParamField header="x-portkey-provider" type="string" required>
+  The provider to route the request to.
+</ParamField>
+
+<ParamField header="x-portkey-api-key" type="string" required>
+  Your Portkey API key or provider API key.
+</ParamField>
+
+### Response
+
+Returns the raw `.jsonl` output content. Each line corresponds to a response for a single request in the batch.
+
+<CodeGroup>
+
+```bash cURL
+curl https://your-gateway.example.com/v1/batches/batch-xyz789/output \
+  -H "x-portkey-api-key: YOUR_API_KEY" \
+  -H "x-portkey-provider: openai" \
+  --output batch_results.jsonl
+```
+
+</CodeGroup>
+
+---
+
+## Cancel a batch
+
+`POST /v1/batches/:id/cancel`
+
+Cancels an in-progress batch. Requests that have already been processed are not reversed.
+
+<Warning>
+  Cancellation is asynchronous. The batch status transitions to `cancelling` and then `cancelled`. Already-processed requests are not refunded.
+</Warning>
+
+### Request
+
+<ParamField path="id" type="string" required>
+  The ID of the batch to cancel.
+</ParamField>
+
+<ParamField header="x-portkey-provider" type="string" required>
+  The provider to route the request to.
+</ParamField>
+
+<ParamField header="x-portkey-api-key" type="string" required>
+  Your Portkey API key or provider API key.
+</ParamField>
+
+### Response
+
+Returns the updated batch object with `status: cancelling`.
+
+<CodeGroup>
+
+```bash cURL
+curl https://your-gateway.example.com/v1/batches/batch-xyz789/cancel \
+  -X POST \
+  -H "x-portkey-api-key: YOUR_API_KEY" \
+  -H "x-portkey-provider: openai"
+```
+
+```python Python
+batch = client.batches.cancel("batch-xyz789")
+print(batch.status)  # cancelling
+```
+
+```javascript JavaScript
+const batch = await client.batches.cancel("batch-xyz789");
+console.log(batch.status); // cancelling
+```
+
+</CodeGroup>

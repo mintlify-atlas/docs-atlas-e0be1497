@@ -1,0 +1,124 @@
+---
+title: "Audio speech"
+description: "Generate spoken audio from text using text-to-speech models."
+---
+
+## POST /v1/audio/speech
+
+Converts text into natural-sounding speech. The response is a binary audio stream in the requested format. This endpoint maps to the `createSpeech` operation and is compatible with the OpenAI TTS API.
+
+## Request headers
+
+<ParamField header="x-portkey-provider" type="string">
+  The provider to route the request to (e.g. `openai`). Required when not using a config.
+</ParamField>
+
+<ParamField header="x-portkey-api-key" type="string">
+  Your provider API key.
+</ParamField>
+
+<ParamField header="x-portkey-config" type="string">
+  A JSON config object or config ID that defines routing, fallbacks, retries, and more.
+</ParamField>
+
+<ParamField header="x-portkey-virtual-key" type="string">
+  A virtual key ID from Portkey Cloud.
+</ParamField>
+
+## Request body
+
+<ParamField body="model" type="string" required>
+  The TTS model to use. OpenAI supports `tts-1` (optimized for speed) and `tts-1-hd` (optimized for quality).
+</ParamField>
+
+<ParamField body="input" type="string" required>
+  The text to convert to speech. Maximum 4096 characters.
+</ParamField>
+
+<ParamField body="voice" type="string" required>
+  The voice to use. OpenAI provides `alloy`, `ash`, `coral`, `echo`, `fable`, `onyx`, `nova`, and `shimmer`. Check your provider's documentation for available voices.
+</ParamField>
+
+<ParamField body="response_format" type="string" default="mp3">
+  The audio output format. Supported values: `mp3`, `opus`, `aac`, `flac`, `wav`, `pcm`.
+</ParamField>
+
+<ParamField body="speed" type="number" default="1.0">
+  The speed of the generated speech, between `0.25` and `4.0`. Values above `1.0` speed up the audio; values below slow it down.
+</ParamField>
+
+## Response
+
+The response body is a binary audio stream with the `Content-Type` matching the requested `response_format` (e.g. `audio/mpeg` for MP3).
+
+| Format | Content-Type |
+|--------|--------------|
+| `mp3` | `audio/mpeg` |
+| `opus` | `audio/opus` |
+| `aac` | `audio/aac` |
+| `flac` | `audio/flac` |
+| `wav` | `audio/wav` |
+| `pcm` | `audio/pcm` |
+
+## Code examples
+
+<CodeGroup>
+
+```bash curl
+curl https://your-gateway-url/v1/audio/speech \
+  -H "Content-Type: application/json" \
+  -H "x-portkey-provider: openai" \
+  -H "x-portkey-api-key: $OPENAI_API_KEY" \
+  -d '{
+    "model": "tts-1",
+    "input": "The Portkey AI Gateway routes requests to over 250 language models.",
+    "voice": "alloy"
+  }' \
+  --output speech.mp3
+```
+
+```python Python
+from openai import OpenAI
+from pathlib import Path
+
+client = OpenAI(
+    base_url="https://your-gateway-url/v1",
+    api_key="$OPENAI_API_KEY",
+    default_headers={
+        "x-portkey-provider": "openai",
+    },
+)
+
+response = client.audio.speech.create(
+    model="tts-1",
+    input="The Portkey AI Gateway routes requests to over 250 language models.",
+    voice="alloy",
+)
+
+speech_file = Path("speech.mp3")
+speech_file.write_bytes(response.content)
+```
+
+```javascript JavaScript
+import OpenAI from "openai";
+import fs from "fs";
+
+const client = new OpenAI({
+  baseURL: "https://your-gateway-url/v1",
+  apiKey: process.env.OPENAI_API_KEY,
+  defaultHeaders: {
+    "x-portkey-provider": "openai",
+  },
+});
+
+const response = await client.audio.speech.create({
+  model: "tts-1",
+  input: "The Portkey AI Gateway routes requests to over 250 language models.",
+  voice: "alloy",
+});
+
+const buffer = Buffer.from(await response.arrayBuffer());
+fs.writeFileSync("speech.mp3", buffer);
+```
+
+</CodeGroup>

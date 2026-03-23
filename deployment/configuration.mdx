@@ -1,0 +1,171 @@
+---
+title: "Configuration reference"
+description: "Full reference for conf.json fields and environment variables used by the Portkey AI Gateway."
+---
+
+The gateway is configured via a `conf.json` file placed in the project root. The file is loaded at startup. All self-hosted deployments — Node.js, Docker, and EC2 — use this same format.
+
+## Example
+
+```json conf.json
+{
+  "plugins_enabled": [
+    "default",
+    "portkey",
+    "aporia",
+    "sydelabs",
+    "pillar",
+    "patronus",
+    "pangea",
+    "promptsecurity",
+    "panw-prisma-airs",
+    "walledai"
+  ],
+  "credentials": {
+    "portkey": {
+      "apiKey": "..."
+    }
+  },
+  "cache": false,
+  "integrations": [
+    {
+      "provider": "anthropic",
+      "slug": "dev_team_anthropic",
+      "credentials": {
+        "apiKey": "sk-ant-"
+      },
+      "rate_limits": [
+        {
+          "type": "requests",
+          "unit": "rph",
+          "value": 3
+        },
+        {
+          "type": "tokens",
+          "unit": "rph",
+          "value": 3000
+        }
+      ],
+      "models": [
+        {
+          "slug": "claude-3-7-sonnet-20250219",
+          "status": "active",
+          "pricing_config": null
+        }
+      ]
+    }
+  ]
+}
+```
+
+## Top-level fields
+
+<ParamField path="body.plugins_enabled" type="string[]">
+  List of guardrail and integration plugin identifiers to enable. The `default` plugin is always required. Additional plugins correspond to third-party guardrail providers.
+
+  Available values: `default`, `portkey`, `qualifire`, `aporia`, `sydelabs`, `pillar`, `patronus`, `pangea`, `promptsecurity`, `panw-prisma-airs`, `walledai`
+</ParamField>
+
+<ParamField path="body.credentials" type="object">
+  Top-level credentials for enabled plugins that require API keys (e.g. Portkey itself). Each key is a plugin identifier and its value is a credentials object.
+
+  ```json
+  {
+    "credentials": {
+      "portkey": {
+        "apiKey": "pk-..."
+      }
+    }
+  }
+  ```
+</ParamField>
+
+<ParamField path="body.cache" type="boolean" default="false">
+  Enable in-memory response caching. When `true`, the gateway intercepts repeated identical requests and returns cached responses without forwarding to the upstream provider.
+
+  For persistent caching across restarts or multiple instances, use the `REDIS_CONNECTION_STRING` environment variable instead.
+</ParamField>
+
+<ParamField path="body.integrations" type="object[]">
+  Array of provider integration configurations. Each entry registers a named provider integration with its own credentials, rate limits, and model list.
+
+  See the [integrations fields](#integrations-fields) section below for full details.
+</ParamField>
+
+## Integrations fields
+
+Each object in the `integrations` array supports the following fields:
+
+<ParamField path="body.provider" type="string" required>
+  The AI provider identifier. Examples: `anthropic`, `openai`, `azure`, `cohere`, `mistral`.
+</ParamField>
+
+<ParamField path="body.slug" type="string" required>
+  A unique human-readable name for this integration. Used to reference this integration in routing configs and logs.
+</ParamField>
+
+<ParamField path="body.credentials" type="object" required>
+  Provider-specific credentials. For most providers this is an `apiKey` string:
+
+  ```json
+  {
+    "credentials": {
+      "apiKey": "sk-..."
+    }
+  }
+  ```
+</ParamField>
+
+<ParamField path="body.rate_limits" type="object[]">
+  Optional array of rate limit rules applied to this integration. Each rule has three fields:
+
+  | Field | Type | Description |
+  |---|---|---|
+  | `type` | `"requests"` \| `"tokens"` | Whether to limit by request count or token count |
+  | `unit` | `"rph"` | Rate limit window. Currently `rph` (requests/tokens per hour) |
+  | `value` | `number` | Maximum allowed requests or tokens within the window |
+
+  ```json
+  {
+    "rate_limits": [
+      { "type": "requests", "unit": "rph", "value": 100 },
+      { "type": "tokens",   "unit": "rph", "value": 50000 }
+    ]
+  }
+  ```
+</ParamField>
+
+<ParamField path="body.models" type="object[]">
+  Optional list of models available through this integration. Each entry has the following fields:
+
+  | Field | Type | Description |
+  |---|---|---|
+  | `slug` | `string` | Model identifier as expected by the provider API (e.g. `claude-3-7-sonnet-20250219`) |
+  | `status` | `"active"` \| `"inactive"` | Whether the model is available for routing |
+  | `pricing_config` | `object` \| `null` | Optional custom pricing configuration |
+</ParamField>
+
+## Environment variables
+
+<ParamField path="body.REDIS_CONNECTION_STRING" type="string">
+  Redis connection string for persistent, distributed response caching. When set (Node.js runtime only), the gateway connects to Redis on startup and uses it as the cache backend instead of in-memory storage.
+
+  ```bash
+  REDIS_CONNECTION_STRING=redis://your-redis-host:6379
+  ```
+
+  <Note>
+    Redis caching is only supported on the Node.js runtime. It is not available on Cloudflare Workers.
+  </Note>
+</ParamField>
+
+## Mounting conf.json in Docker
+
+When running via Docker, mount your local `conf.json` into the container at `/app/conf.json`:
+
+```bash
+docker run --rm -p 8787:8787 \
+  -v $(pwd)/conf.json:/app/conf.json \
+  -e REDIS_CONNECTION_STRING=redis://your-redis-host:6379 \
+  portkeyai/gateway:latest
+```

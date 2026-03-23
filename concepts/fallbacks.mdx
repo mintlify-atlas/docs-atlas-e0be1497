@@ -1,0 +1,158 @@
+---
+title: "Fallbacks"
+description: "Automatically switch to a backup provider or model when a request fails, with configurable error code filtering."
+---
+
+Fallbacks improve the reliability of your AI application by automatically routing to a secondary provider or model when a primary request fails. If the first target returns an error, the gateway tries the next target in the list, and so on until a request succeeds or all targets are exhausted.
+
+## Basic configuration
+
+Set `strategy.mode` to `"fallback"` and list your targets in priority order. The first target is tried first; subsequent targets are used only if the previous one fails.
+
+```json
+{
+  "strategy": {"mode": "fallback"},
+  "targets": [
+    {
+      "provider": "openai",
+      "override_params": {"model": "gpt-4o"}
+    },
+    {
+      "provider": "anthropic",
+      "override_params": {"model": "claude-3-5-sonnet-20241022"}
+    }
+  ]
+}
+```
+
+<CodeGroup>
+
+```python python
+from portkey_ai import Portkey
+
+client = Portkey(
+    base_url="http://localhost:8787/v1",
+    config={
+      "strategy": {"mode": "fallback"},
+      "targets": [
+        {"provider": "openai", "api_key": "sk-...",
+         "override_params": {"model": "gpt-4o"}},
+        {"provider": "anthropic", "api_key": "sk-ant-...",
+         "override_params": {"model": "claude-3-5-sonnet-20241022"}}
+      ]
+    }
+)
+
+response = client.chat.completions.create(
+    model="gpt-4o",
+    messages=[{"role": "user", "content": "Hello"}]
+)
+```
+
+```javascript javascript
+import Portkey from "portkey-ai";
+
+const client = new Portkey({
+  baseURL: "http://localhost:8787/v1",
+  config: {
+    strategy: { mode: "fallback" },
+    targets: [
+      { provider: "openai", apiKey: "sk-...",
+        overrideParams: { model: "gpt-4o" } },
+      { provider: "anthropic", apiKey: "sk-ant-...",
+        overrideParams: { model: "claude-3-5-sonnet-20241022" } }
+    ]
+  }
+});
+
+const response = await client.chat.completions.create({
+  model: "gpt-4o",
+  messages: [{ role: "user", content: "Hello" }]
+});
+```
+
+</CodeGroup>
+
+## Triggering conditions
+
+By default, a fallback is triggered when the current target returns any error response. You can restrict fallbacks to specific HTTP status codes using `strategy.on_status_codes`:
+
+```json
+{
+  "strategy": {
+    "mode": "fallback",
+    "on_status_codes": [429, 500, 502, 503, 504]
+  },
+  "targets": [
+    {"provider": "openai", "override_params": {"model": "gpt-4o"}},
+    {"provider": "anthropic", "override_params": {"model": "claude-3-5-sonnet-20241022"}}
+  ]
+}
+```
+
+<Info>
+  When `on_status_codes` is set, errors with codes **not** in the list propagate immediately to the caller — the gateway will not attempt the next target.
+</Info>
+
+## Fallback chains
+
+You can chain more than two targets to create a multi-level fallback:
+
+```json
+{
+  "strategy": {"mode": "fallback"},
+  "targets": [
+    {"provider": "openai", "override_params": {"model": "gpt-4o"}},
+    {"provider": "anthropic", "override_params": {"model": "claude-3-5-sonnet-20241022"}},
+    {"provider": "mistral-ai", "override_params": {"model": "mistral-large-latest"}},
+    {"provider": "groq", "override_params": {"model": "llama-3.1-70b-versatile"}}
+  ]
+}
+```
+
+The gateway works through targets in order until one succeeds. If all targets fail, the last error is returned to the caller.
+
+## Fallback across API keys
+
+Fallbacks are not limited to different providers. You can fall back across multiple API keys for the same provider:
+
+```json
+{
+  "strategy": {"mode": "fallback"},
+  "targets": [
+    {"provider": "openai", "api_key": "sk-primary-..."},
+    {"provider": "openai", "api_key": "sk-backup-..."}
+  ]
+}
+```
+
+## Combining with retries
+
+Retries and fallbacks work together. The gateway first exhausts all retry attempts for the current target, then moves to the next fallback target.
+
+```json
+{
+  "strategy": {"mode": "fallback"},
+  "retry": {"attempts": 2},
+  "targets": [
+    {"provider": "openai", "override_params": {"model": "gpt-4o"}},
+    {"provider": "anthropic", "override_params": {"model": "claude-3-5-sonnet-20241022"}}
+  ]
+}
+```
+
+With this config, the gateway makes up to 3 total attempts to OpenAI (1 original + 2 retries) before falling back to Anthropic.
+
+<Tip>
+  Apply per-target retry settings to fine-tune how many times each provider is retried before the next fallback is triggered.
+</Tip>
+
+## Response headers
+
+The gateway sets response headers so you can observe fallback behavior:
+
+| Header | Description |
+|---|---|
+| `x-portkey-last-used-option-index` | Index of the target that produced the final response |
+| `x-portkey-last-used-option-params` | Parameters of the last-used target |
+| `x-portkey-retry-attempt-count` | Number of retry attempts made |

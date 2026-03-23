@@ -1,0 +1,148 @@
+---
+title: "Embeddings"
+description: "Generate vector embeddings for text, images, or video inputs."
+---
+
+## POST /v1/embeddings
+
+Converts input into a high-dimensional vector representation (embedding). Embeddings are used for semantic search, clustering, classification, and retrieval-augmented generation (RAG).
+
+The gateway supports text, image, and video embedding inputs depending on the provider. The response always includes a `data` array with embedding vectors indexed to match the input.
+
+## Request headers
+
+<ParamField header="x-portkey-provider" type="string">
+  The provider to route the request to (e.g. `openai`, `cohere`, `google-vertex-ai`). Required when not using a config.
+</ParamField>
+
+<ParamField header="x-portkey-api-key" type="string">
+  Your provider API key.
+</ParamField>
+
+<ParamField header="x-portkey-config" type="string">
+  A JSON config object or config ID that defines routing, fallbacks, retries, and more.
+</ParamField>
+
+<ParamField header="x-portkey-virtual-key" type="string">
+  A virtual key ID from Portkey Cloud.
+</ParamField>
+
+## Request body
+
+<ParamField body="model" type="string" required>
+  The embedding model to use (e.g. `text-embedding-3-small`, `embed-english-v3.0`).
+</ParamField>
+
+<ParamField body="input" type="string | string[] | object[]" required>
+  The text or texts to embed. Accepts:
+  - A single string
+  - An array of strings for batch embedding
+  - An array of `EmbedInput` objects with `text`, `image`, or `video` fields for multimodal providers
+</ParamField>
+
+<ParamField body="encoding_format" type="string" default="float">
+  The format of the returned embeddings. One of `float` or `base64`.
+</ParamField>
+
+<ParamField body="dimensions" type="integer">
+  The number of dimensions in the output embedding. Only supported by models that accept a `dimensions` parameter (e.g. `text-embedding-3-small`).
+</ParamField>
+
+<ParamField body="user" type="string">
+  A unique identifier for the end user, used for monitoring.
+</ParamField>
+
+## Response
+
+<ResponseField name="object" type="string">
+  Always `list`.
+</ResponseField>
+
+<ResponseField name="data" type="object[]">
+  An array of embedding objects, one per input item, in the same order as the input.
+
+  <Expandable title="properties">
+    <ResponseField name="object" type="string">
+      Always `embedding`.
+    </ResponseField>
+    <ResponseField name="index" type="integer">
+      The index of this embedding in the input array.
+    </ResponseField>
+    <ResponseField name="embedding" type="number[]">
+      The embedding vector as an array of floats. Length equals the model's embedding dimension (or the requested `dimensions`).
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="model" type="string">
+  The model used to generate the embeddings.
+</ResponseField>
+
+<ResponseField name="usage" type="object">
+  Token usage for this request.
+
+  <Expandable title="properties">
+    <ResponseField name="prompt_tokens" type="integer">
+      Number of tokens in the input.
+    </ResponseField>
+    <ResponseField name="total_tokens" type="integer">
+      Total tokens consumed.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Code examples
+
+<CodeGroup>
+
+```bash curl
+curl https://your-gateway-url/v1/embeddings \
+  -H "Content-Type: application/json" \
+  -H "x-portkey-provider: openai" \
+  -H "x-portkey-api-key: $OPENAI_API_KEY" \
+  -d '{
+    "model": "text-embedding-3-small",
+    "input": "The Portkey AI Gateway routes requests to 250+ LLMs.",
+    "encoding_format": "float"
+  }'
+```
+
+```python Python
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="https://your-gateway-url/v1",
+    api_key="$OPENAI_API_KEY",
+    default_headers={
+        "x-portkey-provider": "openai",
+    },
+)
+
+response = client.embeddings.create(
+    model="text-embedding-3-small",
+    input="The Portkey AI Gateway routes requests to 250+ LLMs.",
+)
+
+print(response.data[0].embedding[:5])  # first 5 dimensions
+```
+
+```javascript JavaScript
+import OpenAI from "openai";
+
+const client = new OpenAI({
+  baseURL: "https://your-gateway-url/v1",
+  apiKey: process.env.OPENAI_API_KEY,
+  defaultHeaders: {
+    "x-portkey-provider": "openai",
+  },
+});
+
+const response = await client.embeddings.create({
+  model: "text-embedding-3-small",
+  input: "The Portkey AI Gateway routes requests to 250+ LLMs.",
+});
+
+console.log(response.data[0].embedding.slice(0, 5)); // first 5 dimensions
+```
+
+</CodeGroup>

@@ -1,0 +1,209 @@
+---
+title: "AutoGen"
+description: "Route AutoGen multi-agent conversations through the AI Gateway for observability, routing, and reliability."
+---
+
+[AutoGen](https://github.com/microsoft/autogen) (also distributed as `ag2`) is a framework for building multi-agent LLM applications where agents converse with each other to complete tasks. AutoGen accepts an OpenAI-compatible `base_url` in its `config_list`, so you can route all agent requests through the Portkey AI Gateway with minimal changes.
+
+## Installation
+
+<Steps>
+  <Step title="Start the gateway">
+    <Tabs>
+      <Tab title="Local (npx)">
+        ```bash
+        npx @portkey-ai/gateway
+        ```
+
+        The gateway listens at `http://localhost:8787/v1`.
+      </Tab>
+      <Tab title="Portkey Cloud">
+        Sign up at [app.portkey.ai](https://app.portkey.ai) and copy your API key. Use `https://api.portkey.ai/v1` as the base URL.
+      </Tab>
+    </Tabs>
+  </Step>
+
+  <Step title="Install dependencies">
+    <Tabs>
+      <Tab title="ag2">
+        ```bash
+        pip install ag2 portkey-ai
+        ```
+      </Tab>
+      <Tab title="autogen">
+        ```bash
+        pip install autogen portkey-ai
+        ```
+      </Tab>
+    </Tabs>
+  </Step>
+</Steps>
+
+## Basic setup
+
+Set `base_url` inside each entry of `config_list` to point at the gateway.
+
+```python
+import autogen
+
+config_list = [{
+    "model": "gpt-4o",
+    "api_key": "sk-***",
+    "base_url": "http://localhost:8787/v1",
+}]
+
+assistant = autogen.AssistantAgent(
+    name="assistant",
+    llm_config={"config_list": config_list}
+)
+
+user_proxy = autogen.UserProxyAgent(
+    name="user_proxy",
+    human_input_mode="NEVER",
+    code_execution_config={"work_dir": "coding"}
+)
+
+user_proxy.initiate_chat(
+    assistant,
+    message="Write a Python function that checks if a number is prime."
+)
+```
+
+## Adding routing configs via headers
+
+Pass gateway configs through `default_headers` inside each config list entry.
+
+<CodeGroup>
+
+```python Local gateway with config header
+import autogen
+import json
+
+config = {
+    "retry": {"attempts": 3},
+    "cache": {"mode": "simple"}
+}
+
+config_list = [{
+    "model": "gpt-4o",
+    "api_key": "sk-***",
+    "base_url": "http://localhost:8787/v1",
+    "default_headers": {
+        "x-portkey-config": json.dumps(config)
+    }
+}]
+
+assistant = autogen.AssistantAgent(
+    name="assistant",
+    llm_config={"config_list": config_list}
+)
+```
+
+```python Portkey Cloud with virtual key
+import autogen
+from portkey_ai import PORTKEY_GATEWAY_URL, createHeaders
+
+gpt4o_config = [{
+    "api_key": "sk-***",
+    "model": "gpt-4o",
+    "base_url": PORTKEY_GATEWAY_URL,
+    "api_type": "openai",
+    "default_headers": createHeaders(
+        api_key="YOUR_PORTKEY_API_KEY",
+        provider="openai",
+    )
+}]
+
+assistant = autogen.AssistantAgent(
+    name="assistant",
+    llm_config={"config_list": gpt4o_config}
+)
+```
+
+</CodeGroup>
+
+## Real-world use case: multi-agent coding assistant
+
+A three-agent group chat where each agent can use a different model, all routed through the gateway.
+
+```python
+import autogen
+from portkey_ai import PORTKEY_GATEWAY_URL, createHeaders
+
+# GPT-4o for orchestration
+gpt4o_config = [{
+    "api_key": "sk-***",
+    "model": "gpt-4o",
+    "base_url": PORTKEY_GATEWAY_URL,
+    "api_type": "openai",
+    "default_headers": createHeaders(
+        api_key="YOUR_PORTKEY_API_KEY",
+        provider="openai",
+    )
+}]
+
+# Llama 3 via Groq for fast coding tasks
+llama3_config = [{
+    "api_key": "gsk-***",
+    "model": "llama3-70b-8192",
+    "base_url": PORTKEY_GATEWAY_URL,
+    "api_type": "openai",
+    "default_headers": createHeaders(
+        api_key="YOUR_PORTKEY_API_KEY",
+        provider="groq",
+    )
+}]
+
+# GPT-3.5 for lightweight review
+gpt35_config = [{
+    "api_key": "sk-***",
+    "model": "gpt-3.5-turbo",
+    "base_url": PORTKEY_GATEWAY_URL,
+    "api_type": "openai",
+    "default_headers": createHeaders(
+        api_key="YOUR_PORTKEY_API_KEY",
+        provider="openai",
+    )
+}]
+
+user_proxy = autogen.UserProxyAgent(
+    name="User_proxy",
+    system_message="A human admin who will give the idea and run the code provided by the coder.",
+    code_execution_config={"last_n_messages": 2, "work_dir": "groupchat"},
+    human_input_mode="TERMINATE",
+)
+
+coder = autogen.AssistantAgent(
+    name="Coder",
+    llm_config={"config_list": llama3_config},
+)
+
+pm = autogen.AssistantAgent(
+    name="product_manager",
+    system_message="Break down the initial idea into a well-scoped requirement for the coder. Do not participate in future conversations.",
+    llm_config={"config_list": gpt35_config},
+)
+
+groupchat = autogen.GroupChat(
+    agents=[user_proxy, coder, pm],
+    messages=[]
+)
+
+manager = autogen.GroupChatManager(
+    groupchat=groupchat,
+    llm_config={"config_list": gpt4o_config}
+)
+
+user_proxy.initiate_chat(
+    manager,
+    message="Build a classic 2-player pong game in Python"
+)
+```
+
+<Note>
+  AutoGen uses the `api_type` field to determine how to format requests. Always set `"api_type": "openai"` when routing through the Portkey gateway, regardless of the underlying provider.
+</Note>
+
+<Tip>
+  Each agent in a group chat can use a different model and provider. Route cost-sensitive agents to cheaper models and critical orchestration agents to more capable ones.
+</Tip>

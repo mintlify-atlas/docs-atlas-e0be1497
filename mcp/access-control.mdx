@@ -1,0 +1,187 @@
+---
+title: "MCP Gateway access control"
+description: "Restrict which users and teams can access which MCP servers and tools, and revoke access instantly."
+---
+
+## Overview
+
+Access control in the MCP Gateway lets you define policies that determine:
+
+- Which **users** or **teams** can reach which **MCP servers**
+- Which specific **tools** within a server a user or team can call
+- What happens to requests that don't match any policy (deny by default)
+
+Policies are evaluated on every request, so changes take effect immediately — no client reconfiguration required.
+
+## Policy model
+
+Access control policies are defined in `conf.json` under `mcp.policies`. Each policy targets a set of principals (users, teams, or roles) and grants access to a set of servers and tools.
+
+The gateway uses a **deny-by-default** model: if no policy grants access to a resource, the request is rejected with a `403 Forbidden` response.
+
+## Configuring policies
+
+### Allow a team access to a server
+
+Grant the `engineering` team access to all tools on the `filesystem` and `github` servers:
+
+```json conf.json
+{
+  "mcp": {
+    "policies": [
+      {
+        "id": "engineering-access",
+        "principals": {
+          "teams": ["engineering"]
+        },
+        "allow": {
+          "servers": ["filesystem", "github"]
+        }
+      }
+    ]
+  }
+}
+```
+
+### Restrict access to specific tools
+
+Allow the `data-analysts` team to access the `postgres` server, but only the `run_query` and `list_tables` tools — not `drop_table` or other destructive operations:
+
+```json conf.json
+{
+  "mcp": {
+    "policies": [
+      {
+        "id": "analysts-readonly",
+        "principals": {
+          "teams": ["data-analysts"]
+        },
+        "allow": {
+          "servers": {
+            "postgres": {
+              "tools": ["run_query", "list_tables", "describe_table"]
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+```
+
+### Grant access by role
+
+Grant `admin` role users access to all servers and all tools:
+
+```json conf.json
+{
+  "mcp": {
+    "policies": [
+      {
+        "id": "admin-full-access",
+        "principals": {
+          "roles": ["admin"]
+        },
+        "allow": {
+          "servers": "*"
+        }
+      }
+    ]
+  }
+}
+```
+
+### Grant access to a specific user
+
+```json conf.json
+{
+  "mcp": {
+    "policies": [
+      {
+        "id": "alice-filesystem",
+        "principals": {
+          "users": ["alice@example.com"]
+        },
+        "allow": {
+          "servers": ["filesystem"]
+        }
+      }
+    ]
+  }
+}
+```
+
+## Policy evaluation order
+
+When multiple policies apply to a request, the gateway evaluates them in order. The first matching policy that grants access wins. If no policy grants access, the request is denied.
+
+```
+Incoming request
+  → extract identity from auth (user, team, roles)
+  → evaluate policies in order
+  → first matching allow → forward to MCP server
+  → no match → 403 Forbidden
+```
+
+<Note>
+  Policy changes in `conf.json` take effect on the next gateway restart. To change access without restarting, use the gateway API to reload configuration at runtime.
+</Note>
+
+## Revoking access instantly
+
+To revoke a team or user's access:
+
+1. Remove or modify their policy entry in `conf.json`
+2. Reload the gateway configuration
+
+Because policies are evaluated per-request, the revocation applies to all subsequent requests immediately after reload — no changes needed on the MCP client or server side.
+
+<Warning>
+  Revoking access at the gateway level is the fastest way to cut off a user or team. It does not affect any data or state already created by previous tool calls.
+</Warning>
+
+## Example: Full multi-team configuration
+
+A complete example showing different access levels for multiple teams:
+
+```json conf.json
+{
+  "mcp": {
+    "servers": {
+      "filesystem": { "url": "http://localhost:3001" },
+      "github": { "url": "http://localhost:3002" },
+      "postgres": { "url": "http://localhost:3003" },
+      "internal-api": { "url": "http://localhost:3004" }
+    },
+    "policies": [
+      {
+        "id": "admins",
+        "principals": { "roles": ["admin"] },
+        "allow": { "servers": "*" }
+      },
+      {
+        "id": "engineers",
+        "principals": { "teams": ["engineering"] },
+        "allow": {
+          "servers": ["filesystem", "github", "internal-api"]
+        }
+      },
+      {
+        "id": "analysts",
+        "principals": { "teams": ["data-analysts"] },
+        "allow": {
+          "servers": {
+            "postgres": {
+              "tools": ["run_query", "list_tables", "describe_table"]
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+```
+
+## Audit trail
+
+Every access decision — both allowed and denied — is logged. Denied requests include the reason (which policy was checked, what resource was requested, and which principal made the request). See [Observability](/mcp/observability) for details on accessing and exporting logs.

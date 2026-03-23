@@ -1,0 +1,169 @@
+---
+title: "MCP Gateway quickstart"
+description: "Start the Portkey AI Gateway, register your MCP servers, and connect an MCP client in under five minutes."
+---
+
+## Prerequisites
+
+- Node.js 18+ (for `npx`) **or** Docker
+- At least one running MCP server (local or remote)
+- An MCP-compatible client: Claude Desktop, Cursor, or VS Code
+
+## Step 1: Start the gateway
+
+<Steps>
+  <Step title="Run with npx">
+    The fastest way to start the gateway locally:
+
+    ```bash
+    npx @portkey-ai/gateway
+    ```
+
+    The gateway starts two endpoints:
+    - **API:** `http://localhost:8787/v1`
+    - **MCP proxy:** `http://localhost:8787/mcp`
+    - **Console:** `http://localhost:8787/public/`
+
+    <Tip>To run persistently, use Docker or deploy to a server. See the [deployment guides](/deployment/overview).</Tip>
+  </Step>
+
+  <Step title="(Alternative) Run with Docker">
+    ```bash
+    docker run -p 8787:8787 portkeyai/gateway:latest
+    ```
+
+    To pass a custom config file:
+
+    ```bash
+    docker run -p 8787:8787 \
+      -v $(pwd)/conf.json:/app/conf.json \
+      portkeyai/gateway:latest
+    ```
+  </Step>
+</Steps>
+
+## Step 2: Configure MCP server endpoints
+
+Create a `conf.json` file (or edit the existing one) to register your MCP servers:
+
+```json conf.json
+{
+  "mcp": {
+    "servers": {
+      "filesystem": {
+        "url": "http://localhost:3001",
+        "description": "Local filesystem access"
+      },
+      "github": {
+        "url": "http://localhost:3002",
+        "description": "GitHub repository tools"
+      },
+      "postgres": {
+        "url": "http://localhost:3003",
+        "description": "PostgreSQL database queries"
+      }
+    }
+  }
+}
+```
+
+Each key under `servers` becomes the server name used in client configuration. Restart the gateway after editing `conf.json`.
+
+<Note>
+  MCP servers must be running and reachable from the gateway host before the gateway tries to proxy requests to them.
+</Note>
+
+## Step 3: Connect an MCP client
+
+Configure your MCP client to point at the gateway instead of connecting directly to each MCP server.
+
+<CodeGroup>
+
+```json Claude Desktop
+// ~/Library/Application Support/Claude/claude_desktop_config.json (macOS)
+// %APPDATA%\Claude\claude_desktop_config.json (Windows)
+{
+  "mcpServers": {
+    "portkey-gateway": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@portkey-ai/mcp-client",
+        "--gateway", "http://localhost:8787/mcp",
+        "--api-key", "your-gateway-api-key"
+      ]
+    }
+  }
+}
+```
+
+```json Cursor
+// .cursor/mcp.json (project-level) or ~/.cursor/mcp.json (global)
+{
+  "mcpServers": {
+    "portkey-gateway": {
+      "url": "http://localhost:8787/mcp",
+      "headers": {
+        "Authorization": "Bearer your-gateway-api-key"
+      }
+    }
+  }
+}
+```
+
+```json VS Code
+// .vscode/settings.json
+{
+  "continue.mcpServers": [
+    {
+      "name": "portkey-gateway",
+      "url": "http://localhost:8787/mcp",
+      "headers": {
+        "Authorization": "Bearer your-gateway-api-key"
+      }
+    }
+  ]
+}
+```
+
+</CodeGroup>
+
+## Step 4: Test with a tool call
+
+Once your client is connected, ask the AI assistant to use a tool from one of your registered MCP servers. For example, with the `filesystem` server registered:
+
+> "List the files in my project directory"
+
+The request flows through the gateway:
+
+1. Client sends the tool call to `http://localhost:8787/mcp`
+2. Gateway authenticates the request
+3. Gateway checks the access policy
+4. Gateway forwards the call to the `filesystem` MCP server
+5. Response is returned to the client
+6. The tool call is logged in the Gateway Console
+
+## Step 5: View logs in the console
+
+Open `http://localhost:8787/public/` to see all MCP tool calls logged in real time — including who called what tool, with what parameters, and the response.
+
+<Note>
+  The Gateway Console shows all MCP tool calls in real time — including who called what tool, with what parameters, and the response.
+</Note>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Authentication" icon="key" href="/mcp/authentication">
+    Configure API keys or JWT tokens to secure the gateway.
+  </Card>
+  <Card title="Access control" icon="shield" href="/mcp/access-control">
+    Restrict which users and teams can use which servers and tools.
+  </Card>
+  <Card title="Observability" icon="eye" href="/mcp/observability">
+    Explore logs, export data, and integrate with external tools.
+  </Card>
+  <Card title="Deployment" icon="cloud" href="/deployment/overview">
+    Deploy the gateway to production on Docker, Node.js, or cloud platforms.
+  </Card>
+</CardGroup>
