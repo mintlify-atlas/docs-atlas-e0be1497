@@ -1,7 +1,11 @@
 ---
 title: "MCP Gateway authentication"
-description: "Authenticate requests to the MCP Gateway using API keys or JWT tokens, and forward verified user identity to your MCP servers."
+description: "How the Portkey MCP Gateway authenticates clients and forwards verified user identity to your MCP servers."
 ---
+
+<Info>
+  MCP Gateway is available on [Portkey Cloud](https://app.portkey.ai). For the complete authentication reference, see [portkey.ai/docs/product/mcp-gateway](https://portkey.ai/docs/product/mcp-gateway).
+</Info>
 
 ## How authentication works
 
@@ -9,92 +13,26 @@ The MCP Gateway acts as the single authentication boundary for all MCP traffic. 
 
 ```
 MCP Client
-  → presents credentials to gateway
+  → presents credentials to Portkey MCP Gateway
   → gateway validates credentials
-  → gateway forwards request + verified identity to MCP server
+  → gateway forwards request + verified identity headers to MCP server
   → MCP server trusts the forwarded identity
 ```
 
-This means your MCP servers can focus on tool logic rather than auth infrastructure.
+This means your MCP servers can focus on tool logic rather than authentication infrastructure.
 
-## Authentication methods
+## Client authentication
 
-The gateway supports two authentication methods for incoming requests.
-
-### API key authentication
-
-Pass a static API key in the `Authorization` header:
+Clients authenticate to the gateway using a **Portkey API key** passed in the `x-portkey-api-key` request header:
 
 ```http
-Authorization: Bearer your-gateway-api-key
+POST /mcp/YOUR_WORKSPACE_ID/tools/call HTTP/1.1
+Host: api.portkey.ai
+x-portkey-api-key: YOUR_PORTKEY_API_KEY
+Content-Type: application/json
 ```
 
-Configure allowed API keys in `conf.json`:
-
-```json conf.json
-{
-  "mcp": {
-    "auth": {
-      "type": "api_key",
-      "keys": [
-        {
-          "key": "gw-key-alice-team",
-          "user": "alice@example.com",
-          "team": "engineering",
-          "roles": ["developer"]
-        },
-        {
-          "key": "gw-key-ops-team",
-          "user": "service-account@example.com",
-          "team": "ops",
-          "roles": ["operator"]
-        }
-      ]
-    }
-  }
-}
-```
-
-Each key entry maps a credential to a user identity. This identity is forwarded to MCP servers with every request (see [Identity forwarding](#identity-forwarding) below).
-
-### JWT authentication
-
-For user-facing applications, configure the gateway to validate JWTs issued by your identity provider:
-
-```json conf.json
-{
-  "mcp": {
-    "auth": {
-      "type": "jwt",
-      "jwks_url": "https://your-idp.example.com/.well-known/jwks.json",
-      "audience": "portkey-mcp-gateway",
-      "issuer": "https://your-idp.example.com"
-    }
-  }
-}
-```
-
-The gateway validates the token signature and claims, then extracts user identity from the JWT payload.
-
-<Tip>
-  JWT claims `email`, `team`, and `roles` are extracted automatically if present. You can map custom claim names using the `claims_mapping` field.
-</Tip>
-
-```json conf.json
-{
-  "mcp": {
-    "auth": {
-      "type": "jwt",
-      "jwks_url": "https://your-idp.example.com/.well-known/jwks.json",
-      "claims_mapping": {
-        "user": "sub",
-        "team": "custom:department",
-        "roles": "custom:roles"
-      }
-    }
-  }
-}
-```
+For user-facing applications, Portkey also supports **virtual keys** — workspace-scoped credentials that can be scoped, rotated, and revoked independently of your main API key.
 
 ## Identity forwarding
 
@@ -102,66 +40,31 @@ After authenticating a request, the gateway forwards the verified user identity 
 
 The following headers are forwarded automatically:
 
-| Header | Value | Example |
-|---|---|---|
-| `x-portkey-user` | Authenticated user identifier | `alice@example.com` |
-| `x-portkey-team` | Team or organization the user belongs to | `engineering` |
-| `x-portkey-roles` | Comma-separated list of roles | `developer,admin` |
-| `x-portkey-request-id` | Unique ID for this request | `req_01j8...` |
+| Header | Value |
+|---|---|
+| `x-portkey-user` | Authenticated user identifier |
+| `x-portkey-team` | Team or workspace the user belongs to |
+| `x-portkey-roles` | Roles assigned to the user |
+| `x-portkey-request-id` | Unique ID for this request |
 
-Example of what an MCP server receives:
-
-```http
-POST /tools/call HTTP/1.1
-Host: localhost:3001
-x-portkey-user: alice@example.com
-x-portkey-team: engineering
-x-portkey-roles: developer
-x-portkey-request-id: req_01j8abc123
-Content-Type: application/json
-
-{
-  "tool": "read_file",
-  "params": { "path": "/project/README.md" }
-}
-```
+MCP servers can use these headers to implement per-user access rules, audit trails, or personalized behavior.
 
 <Note>
-  MCP servers should validate that requests come from the gateway (e.g., by checking a shared secret or network policy) before trusting forwarded identity headers.
+  MCP servers should validate that requests originate from the Portkey gateway (for example, by checking an internal network policy or a shared secret configured in the Portkey dashboard) before trusting forwarded identity headers.
 </Note>
-
-## Securing the gateway-to-server connection
-
-If your MCP servers are on the same private network as the gateway, network isolation may be sufficient. For additional security, configure a shared secret between the gateway and each MCP server:
-
-```json conf.json
-{
-  "mcp": {
-    "servers": {
-      "filesystem": {
-        "url": "http://localhost:3001",
-        "auth": {
-          "type": "header",
-          "header": "x-internal-secret",
-          "value": "your-internal-shared-secret"
-        }
-      }
-    }
-  }
-}
-```
-
-The gateway will include this header on every request it forwards to the server.
 
 ## Revoking access
 
-To revoke a user or service account's access:
+Access can be revoked instantly from the Portkey dashboard:
 
-1. Remove or disable their API key from the `keys` array in `conf.json`
-2. Reload the gateway configuration
+- **Revoke an API key** — immediately blocks all requests using that key
+- **Revoke a virtual key** — blocks requests from a specific integration or user
+- **Disable a workspace** — blocks all traffic through that gateway endpoint
 
-For JWT-based auth, access is revoked when the JWT expires, or you can add the token to a denylist using the `denylist` configuration option.
+Revocation takes effect immediately for all subsequent requests. In-flight requests are not interrupted.
 
-<Warning>
-  Removing a key from `conf.json` and restarting the gateway takes effect immediately for all subsequent requests. In-flight requests using that key will not be interrupted.
-</Warning>
+## Learn more
+
+- [Full authentication reference →](https://portkey.ai/docs/product/mcp-gateway)
+- [Virtual keys →](https://portkey.ai/docs)
+- [Access control →](/mcp/access-control)

@@ -3,6 +3,10 @@ title: "MCP Gateway observability"
 description: "Every MCP tool call is logged with full context — who called what, the parameters, the response, and end-to-end latency."
 ---
 
+<Info>
+  MCP Gateway is available on [Portkey Cloud](https://app.portkey.ai). For the complete observability reference, see [portkey.ai/docs/product/mcp-gateway](https://portkey.ai/docs/product/mcp-gateway).
+</Info>
+
 ## What gets logged
 
 The MCP Gateway logs every tool call that passes through it. Each log entry captures:
@@ -13,7 +17,6 @@ The MCP Gateway logs every tool call that passes through it. Each log entry capt
 | `request_id` | Unique identifier for the request |
 | `user` | Authenticated user who made the call |
 | `team` | Team the user belongs to |
-| `roles` | Roles assigned to the user |
 | `server` | MCP server the tool call was routed to |
 | `tool` | Name of the tool that was called |
 | `params` | Parameters passed to the tool |
@@ -22,26 +25,20 @@ The MCP Gateway logs every tool call that passes through it. Each log entry capt
 | `latency_ms` | End-to-end latency in milliseconds |
 | `error` | Error message if the call failed |
 
-Denied requests (blocked by access control) are also logged with `status: denied`, so you have a complete audit trail of both successful and rejected calls.
+Denied requests (blocked by access control) are also logged with `status: denied`, giving you a complete audit trail of both successful and rejected calls.
 
-## Viewing logs in the Gateway Console
+## Viewing logs in the Portkey dashboard
 
-Open the Gateway Console at `http://localhost:8787/public/` to view all logs in real time.
-
-The console provides:
+The **Portkey dashboard** provides a real-time log viewer for all MCP tool calls in your workspace:
 
 - **Live feed** — new tool calls appear as they happen
 - **Search and filter** — filter by user, team, server, tool name, status, or time range
 - **Request detail** — click any log entry to see the full parameters and response
-- **Latency view** — see end-to-end latency for each call
-
-<Note>
-  The console is available at `/public/` on whatever host and port the gateway is running on. For production deployments, restrict access to this endpoint to trusted networks.
-</Note>
+- **Latency charts** — visualize latency trends per server or tool
 
 ## Log structure
 
-Logs are structured JSON. Each tool call produces a log entry in this format:
+Logs are structured JSON. Each tool call produces an entry like:
 
 ```json example log entry
 {
@@ -49,7 +46,6 @@ Logs are structured JSON. Each tool call produces a log entry in this format:
   "request_id": "req_01j8abc123xyz",
   "user": "alice@example.com",
   "team": "engineering",
-  "roles": ["developer"],
   "server": "github",
   "tool": "search_repositories",
   "params": {
@@ -58,7 +54,7 @@ Logs are structured JSON. Each tool call produces a log entry in this format:
   },
   "response": {
     "repositories": [
-      { "name": "gateway", "stars": 5200 }
+      { "name": "gateway", "stars": 10998 }
     ]
   },
   "status": "success",
@@ -68,136 +64,23 @@ Logs are structured JSON. Each tool call produces a log entry in this format:
 
 ## Exporting logs
 
-### Log files
-
-By default, logs are written to stdout and to a local log file. Configure the log file path in `conf.json`:
-
-```json conf.json
-{
-  "mcp": {
-    "logging": {
-      "file": "/var/log/portkey-gateway/mcp.log",
-      "level": "info"
-    }
-  }
-}
-```
-
-### Forwarding to external systems
-
-You can forward logs to external observability platforms by configuring a log sink:
-
-<CodeGroup>
-
-```json Datadog
-{
-  "mcp": {
-    "logging": {
-      "sinks": [
-        {
-          "type": "http",
-          "url": "https://http-intake.logs.datadoghq.com/api/v2/logs",
-          "headers": {
-            "DD-API-KEY": "your-datadog-api-key",
-            "Content-Type": "application/json"
-          }
-        }
-      ]
-    }
-  }
-}
-```
-
-```json Splunk
-{
-  "mcp": {
-    "logging": {
-      "sinks": [
-        {
-          "type": "http",
-          "url": "https://your-splunk-host:8088/services/collector",
-          "headers": {
-            "Authorization": "Splunk your-hec-token",
-            "Content-Type": "application/json"
-          }
-        }
-      ]
-    }
-  }
-}
-```
-
-```json Loki (Grafana)
-{
-  "mcp": {
-    "logging": {
-      "sinks": [
-        {
-          "type": "loki",
-          "url": "http://loki:3100",
-          "labels": {
-            "app": "portkey-mcp-gateway",
-            "env": "production"
-          }
-        }
-      ]
-    }
-  }
-}
-```
-
-</CodeGroup>
-
-### Querying logs via API
-
-The gateway exposes a logs API endpoint for programmatic access:
-
-```bash
-# List recent tool calls
-curl http://localhost:8787/public/api/logs \
-  -H "Authorization: Bearer your-gateway-api-key"
-
-# Filter by user
-curl "http://localhost:8787/public/api/logs?user=alice@example.com&limit=50" \
-  -H "Authorization: Bearer your-gateway-api-key"
-
-# Filter by server and tool
-curl "http://localhost:8787/public/api/logs?server=github&tool=search_repositories" \
-  -H "Authorization: Bearer your-gateway-api-key"
-```
-
-Responses are paginated JSON arrays of log entries.
+Logs can be exported from the Portkey dashboard in JSON or CSV format, or forwarded in real time to external observability platforms (Datadog, Splunk, Grafana Loki, and others) via webhook integrations configured in the dashboard.
 
 ## Alerting
 
-You can use any log-based alerting system with the exported logs. Common alerts to configure:
+Use any log-based alerting system with exported logs. Common alerts to configure:
 
 - **High error rate** — more than X% of tool calls returning errors in a time window
-- **Denied requests spike** — unusually high number of access-denied events (possible credential misuse)
-- **Latency degradation** — `latency_ms` exceeding a threshold for a given server
-- **Unexpected tool access** — a specific tool being called that shouldn't be used in production
+- **Denied requests spike** — unusually high number of access-denied events (potential credential misuse)
+- **Latency degradation** — latency exceeding a threshold for a given server
+- **Unexpected tool access** — a specific sensitive tool being called unexpectedly
 
 <Tip>
-  Denied request logs include the user, team, server, and tool that was blocked. These are useful for auditing and detecting unauthorized access attempts.
+  Denied request logs include the user, team, server, and tool that was blocked — useful for auditing and detecting unauthorized access attempts.
 </Tip>
 
-## Retention and privacy
+## Learn more
 
-By default, the gateway stores logs locally with no automatic expiry. Configure retention in `conf.json`:
-
-```json conf.json
-{
-  "mcp": {
-    "logging": {
-      "retention_days": 30,
-      "redact_params": ["password", "token", "secret", "api_key"]
-    }
-  }
-}
-```
-
-The `redact_params` field lists parameter names whose values are replaced with `[REDACTED]` before logging. Use this to prevent sensitive tool parameters from appearing in logs.
-
-<Warning>
-  MCP tool parameters can contain sensitive data (file contents, query results, API responses). Review what your tools return and configure `redact_params` appropriately before deploying to production.
-</Warning>
+- [Full observability reference →](https://portkey.ai/docs/product/mcp-gateway)
+- [Access control →](/mcp/access-control)
+- [Authentication →](/mcp/authentication)

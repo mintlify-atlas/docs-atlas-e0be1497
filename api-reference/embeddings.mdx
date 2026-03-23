@@ -96,7 +96,7 @@ The gateway supports text, image, and video embedding inputs depending on the pr
 <CodeGroup>
 
 ```bash curl
-curl https://your-gateway-url/v1/embeddings \
+curl http://localhost:8787/v1/embeddings \
   -H "Content-Type: application/json" \
   -H "x-portkey-provider: openai" \
   -H "x-portkey-api-key: $OPENAI_API_KEY" \
@@ -111,7 +111,7 @@ curl https://your-gateway-url/v1/embeddings \
 from openai import OpenAI
 
 client = OpenAI(
-    base_url="https://your-gateway-url/v1",
+    base_url="http://localhost:8787/v1",
     api_key="$OPENAI_API_KEY",
     default_headers={
         "x-portkey-provider": "openai",
@@ -130,7 +130,7 @@ print(response.data[0].embedding[:5])  # first 5 dimensions
 import OpenAI from "openai";
 
 const client = new OpenAI({
-  baseURL: "https://your-gateway-url/v1",
+  baseURL: "http://localhost:8787/v1",
   apiKey: process.env.OPENAI_API_KEY,
   defaultHeaders: {
     "x-portkey-provider": "openai",

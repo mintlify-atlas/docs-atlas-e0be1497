@@ -105,7 +105,7 @@ The response format depends on the `response_format` parameter.
 <CodeGroup>
 
 ```bash curl
-curl https://your-gateway-url/v1/audio/translations \
+curl http://localhost:8787/v1/audio/translations \
   -H "x-portkey-provider: openai" \
   -H "x-portkey-api-key: $OPENAI_API_KEY" \
   -F "model=whisper-1" \
@@ -117,7 +117,7 @@ curl https://your-gateway-url/v1/audio/translations \
 from openai import OpenAI
 
 client = OpenAI(
-    base_url="https://your-gateway-url/v1",
+    base_url="http://localhost:8787/v1",
     api_key="$OPENAI_API_KEY",
     default_headers={
         "x-portkey-provider": "openai",
@@ -138,7 +138,7 @@ import OpenAI from "openai";
 import fs from "fs";
 
 const client = new OpenAI({
-  baseURL: "https://your-gateway-url/v1",
+  baseURL: "http://localhost:8787/v1",
   apiKey: process.env.OPENAI_API_KEY,
   defaultHeaders: {
     "x-portkey-provider": "openai",

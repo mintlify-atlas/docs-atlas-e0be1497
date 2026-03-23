@@ -91,7 +91,7 @@ Generates an edited version of an image based on a text prompt. You can optional
 <CodeGroup>
 
 ```bash curl
-curl https://your-gateway-url/v1/images/edits \
+curl http://localhost:8787/v1/images/edits \
   -H "x-portkey-provider: openai" \
   -H "x-portkey-api-key: $OPENAI_API_KEY" \
   -F "model=dall-e-2" \
@@ -106,7 +106,7 @@ curl https://your-gateway-url/v1/images/edits \
 from openai import OpenAI
 
 client = OpenAI(
-    base_url="https://your-gateway-url/v1",
+    base_url="http://localhost:8787/v1",
     api_key="$OPENAI_API_KEY",
     default_headers={
         "x-portkey-provider": "openai",
@@ -131,7 +131,7 @@ import OpenAI from "openai";
 import fs from "fs";
 
 const client = new OpenAI({
-  baseURL: "https://your-gateway-url/v1",
+  baseURL: "http://localhost:8787/v1",
   apiKey: process.env.OPENAI_API_KEY,
   defaultHeaders: {
     "x-portkey-provider": "openai",

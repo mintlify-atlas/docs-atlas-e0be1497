@@ -198,10 +198,10 @@ Creates a message using the Anthropic Messages API format. This endpoint lets yo
 <CodeGroup>
 
 ```bash curl
-curl https://your-gateway-url/v1/messages \
+curl http://localhost:8787/v1/messages \
   -H "Content-Type: application/json" \
   -H "x-portkey-provider: anthropic" \
-  -H "x-portkey-api-key: $ANTHROPIC_API_KEY" \
+  -H "Authorization: Bearer $ANTHROPIC_API_KEY" \
   -d '{
     "model": "claude-opus-4-5",
     "max_tokens": 1024,
@@ -216,10 +216,11 @@ curl https://your-gateway-url/v1/messages \
 import anthropic
 
 client = anthropic.Anthropic(
-    base_url="https://your-gateway-url",
-    api_key="$ANTHROPIC_API_KEY",
+    base_url="http://localhost:8787",
+    api_key="-",  # required by SDK, actual key goes in the header
     default_headers={
         "x-portkey-provider": "anthropic",
+        "Authorization": f"Bearer {ANTHROPIC_API_KEY}",
     },
 )
 
@@ -239,10 +240,11 @@ print(response.content[0].text)
 import Anthropic from "@anthropic-ai/sdk";
 
 const client = new Anthropic({
-  baseURL: "https://your-gateway-url",
-  apiKey: process.env.ANTHROPIC_API_KEY,
+  baseURL: "http://localhost:8787",
+  apiKey: "-",  // required by SDK, actual key goes in the header
   defaultHeaders: {
     "x-portkey-provider": "anthropic",
+    "Authorization": `Bearer ${process.env.ANTHROPIC_API_KEY}`,
   },
 });
 
@@ -259,3 +261,31 @@ console.log(response.content[0].text);
 ```
 
 </CodeGroup>
+
+---
+
+## POST /v1/messages/count_tokens
+
+Count the number of tokens that a given request would consume without generating a response. Useful for checking whether a prompt fits within a model's context window before making the full request.
+
+The request body has the same structure as `POST /v1/messages`.
+
+```bash curl
+curl http://localhost:8787/v1/messages/count_tokens \
+  -H "Content-Type: application/json" \
+  -H "x-portkey-provider: anthropic" \
+  -H "Authorization: Bearer $ANTHROPIC_API_KEY" \
+  -d '{
+    "model": "claude-opus-4-5",
+    "system": "You are a helpful assistant.",
+    "messages": [
+      {"role": "user", "content": "What is the Portkey AI Gateway?"}
+    ]
+  }'
+```
+
+### Response
+
+<ResponseField name="input_tokens" type="integer">
+  The number of tokens the request would use, including the system prompt and all messages.
+</ResponseField>

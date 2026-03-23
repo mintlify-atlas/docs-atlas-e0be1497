@@ -1,70 +1,77 @@
 ---
 title: "MCP Gateway"
-description: "A centralized control plane for managing Model Context Protocol servers — with authentication, access control, observability, and identity forwarding."
+description: "Centralized control plane for managing Model Context Protocol (MCP) servers across your organization — with authentication, access control, and full observability."
 ---
 
-## What is the MCP Gateway?
+The **MCP Gateway** provides a centralized control plane for managing [Model Context Protocol (MCP)](https://modelcontextprotocol.io) servers across your organization.
 
-The **Model Context Protocol (MCP)** is an open standard that lets AI clients (like Claude Desktop, Cursor, and VS Code) connect to external tools and data sources called **MCP servers**. When an AI assistant needs to query a database, call an API, or run a script, it does so through an MCP server.
+<Info>
+  MCP Gateway is a feature of [Portkey Cloud](https://app.portkey.ai) and enterprise deployments. It is documented fully at [portkey.ai/docs/product/mcp-gateway](https://portkey.ai/docs/product/mcp-gateway). This section provides an overview of the capabilities.
+</Info>
 
-The **MCP Gateway** sits in front of your MCP servers and acts as a centralized control plane. Instead of every client authenticating separately to every server, all traffic flows through the gateway — giving you a single place to enforce auth, manage access, and inspect every tool call.
+## What is MCP?
 
-<Note>
-  The MCP Gateway is part of the Portkey AI Gateway. You can run it with the same `npx @portkey-ai/gateway` command you use for LLM routing.
-</Note>
+MCP (Model Context Protocol) is an open protocol that lets AI clients connect to external tools and data sources — called **MCP servers**. When an AI assistant needs to query a database, read a file, or call an API, it does so through an MCP server.
+
+Without a gateway, every client authenticates separately to every MCP server. There is no central place to manage access, audit tool calls, or revoke permissions.
 
 ## Core capabilities
 
 <CardGroup cols={2}>
   <Card title="Authentication" icon="key" href="/mcp/authentication">
-    Single auth layer at the gateway. Users authenticate once; your MCP servers receive only verified, forwarded requests.
+    Single auth layer at the gateway. Users authenticate once; your MCP servers receive verified requests — no user credentials reach the server directly.
   </Card>
   <Card title="Access control" icon="shield-check" href="/mcp/access-control">
-    Control which teams and users can access which MCP servers and individual tools. Revoke access instantly without touching server config.
+    Control which teams and users can access which MCP servers and specific tools. Revoke access instantly without touching server configuration.
   </Card>
   <Card title="Observability" icon="chart-line" href="/mcp/observability">
     Every tool call is logged with full context: who called what, the parameters passed, the response returned, and end-to-end latency.
   </Card>
-  <Card title="Identity forwarding" icon="user-check" href="/mcp/authentication#identity-forwarding">
-    Forward verified user identity — email, team, and roles — to MCP servers automatically, so servers can apply their own authorization logic.
+  <Card title="Identity forwarding" icon="user-check" href="/mcp/authentication">
+    Forward verified user identity (email, team, roles) to MCP servers automatically so servers can apply their own authorization logic.
   </Card>
 </CardGroup>
 
 ## How it works
 
-Without the MCP Gateway, each MCP client connects directly to each MCP server. This means you need to configure credentials on every client, manage access server-by-server, and have no centralized view of what tools are being called.
-
-With the MCP Gateway, clients connect to a single endpoint. The gateway authenticates the request, checks the access policy, forwards the tool call to the correct MCP server, logs the result, and returns the response to the client.
-
 ```
-MCP Client  →  Portkey MCP Gateway  →  MCP Server A
-                      ↓                 MCP Server B
-              Auth + Access Control     MCP Server C
-              Logging + Forwarding
+MCP Client (Claude Desktop, Cursor, VS Code, ...)
+        │
+        │  authenticated request
+        ▼
+  Portkey MCP Gateway
+        │  ├─ authenticates the user
+        │  ├─ checks access policy
+        │  ├─ logs the tool call
+        │  └─ forwards identity headers
+        ▼
+  Your MCP Server (filesystem, GitHub, postgres, ...)
 ```
+
+The gateway is transparent to both the client and server. Clients connect to a single Portkey endpoint; servers receive requests with a verified shared secret and user identity headers.
 
 ## Compatible clients
 
-The MCP Gateway works with any MCP-compatible client:
+Works with any MCP-compatible client:
 
 - **Claude Desktop** — Anthropic's desktop application
 - **Cursor** — AI-powered code editor
-- **VS Code** — with the Continue or Copilot extensions
-- **Any MCP client** — the gateway speaks standard MCP over HTTP
+- **VS Code** — with the Continue extension or similar MCP clients
+- **Custom clients** — any application implementing the MCP protocol
 
 ## Get started
 
 <CardGroup cols={2}>
   <Card title="Quickstart" icon="rocket" href="/mcp/quickstart">
-    Start the gateway, configure your MCP servers, and make your first tool call.
+    Connect your first MCP client through the Portkey MCP Gateway.
+  </Card>
+  <Card title="Portkey Cloud" icon="cloud" href="https://app.portkey.ai">
+    Sign up for Portkey Cloud to access the full MCP Gateway.
+  </Card>
+  <Card title="Full documentation" icon="book" href="https://portkey.ai/docs/product/mcp-gateway">
+    Read the complete MCP Gateway documentation on portkey.ai.
   </Card>
   <Card title="Authentication" icon="key" href="/mcp/authentication">
-    Configure API key or JWT authentication for the gateway.
-  </Card>
-  <Card title="Access control" icon="shield" href="/mcp/access-control">
-    Define policies to restrict which users and teams can access which servers.
-  </Card>
-  <Card title="Observability" icon="eye" href="/mcp/observability">
-    View logs and monitor tool call activity in the Gateway Console.
+    Learn how the gateway authenticates clients and forwards identity.
   </Card>
 </CardGroup>

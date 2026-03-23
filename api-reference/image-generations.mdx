@@ -88,7 +88,7 @@ Generates one or more images from a text description. The gateway forwards the r
 <CodeGroup>
 
 ```bash curl
-curl https://your-gateway-url/v1/images/generations \
+curl http://localhost:8787/v1/images/generations \
   -H "Content-Type: application/json" \
   -H "x-portkey-provider: openai" \
   -H "x-portkey-api-key: $OPENAI_API_KEY" \
@@ -104,7 +104,7 @@ curl https://your-gateway-url/v1/images/generations \
 from openai import OpenAI
 
 client = OpenAI(
-    base_url="https://your-gateway-url/v1",
+    base_url="http://localhost:8787/v1",
     api_key="$OPENAI_API_KEY",
     default_headers={
         "x-portkey-provider": "openai",
@@ -125,7 +125,7 @@ print(response.data[0].url)
 import OpenAI from "openai";
 
 const client = new OpenAI({
-  baseURL: "https://your-gateway-url/v1",
+  baseURL: "http://localhost:8787/v1",
   apiKey: process.env.OPENAI_API_KEY,
   defaultHeaders: {
     "x-portkey-provider": "openai",
